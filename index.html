@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1" />
+  <meta name="theme-color" content="#1a1d1a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="轻衡" />
+  <title>轻衡 · 我的健身</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <link rel="icon" href="favicon-64.png" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div id="app">
+
+  <!-- ================= TODAY ================= -->
+  <section class="screen" data-screen="today">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow" id="today-date">—</p>
+        <h1 class="screen-title" id="greeting">今天</h1>
+      </div>
+      <button class="icon-btn" data-open="settings" aria-label="设置">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+    </header>
+
+    <!-- Signature: energy balance ring -->
+    <div class="ring-card">
+      <div class="ring-wrap">
+        <svg viewBox="0 0 200 200" class="ring">
+          <circle class="ring-track" cx="100" cy="100" r="86" />
+          <circle class="ring-in"  cx="100" cy="100" r="86" id="ring-in" />
+          <circle class="ring-out" cx="100" cy="100" r="86" id="ring-out" />
+        </svg>
+        <div class="ring-center">
+          <p class="ring-label">今日净缺口</p>
+          <p class="ring-value"><span id="net-deficit">0</span></p>
+          <p class="ring-unit">kcal</p>
+        </div>
+      </div>
+      <div class="ring-legend">
+        <div class="legend-item">
+          <span class="dot dot-in"></span>
+          <div><p class="legend-num" id="sum-in">0</p><p class="legend-cap">摄入</p></div>
+        </div>
+        <div class="legend-item">
+          <span class="dot dot-out"></span>
+          <div><p class="legend-num" id="sum-out">0</p><p class="legend-cap">消耗</p></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-head">
+      <h2>今日饮食</h2>
+      <button class="ghost-btn" data-goto="diet">全部 ›</button>
+    </div>
+    <div id="today-meals" class="stack"></div>
+
+    <div class="section-head">
+      <h2>今日训练</h2>
+      <button class="ghost-btn" data-goto="training">全部 ›</button>
+    </div>
+    <div id="today-workouts" class="stack"></div>
+    <div class="bottom-space"></div>
+  </section>
+
+  <!-- ================= DIET ================= -->
+  <section class="screen" data-screen="diet" hidden>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">减脂餐</p>
+        <h1 class="screen-title">饮食</h1>
+      </div>
+      <div class="date-nav">
+        <button class="icon-btn sm" data-date="diet" data-dir="-1" aria-label="前一天">‹</button>
+        <span id="diet-date" class="date-chip">今天</span>
+        <button class="icon-btn sm" data-date="diet" data-dir="1" aria-label="后一天">›</button>
+      </div>
+    </header>
+
+    <div class="progress-card accent-teal">
+      <div class="progress-top">
+        <div><p class="pc-big"><span id="diet-total">0</span> <span class="pc-small">/ <span id="diet-target">1600</span> kcal</span></p>
+          <p class="pc-cap" id="diet-remain">还可摄入 1600 kcal</p></div>
+        <div class="pc-macro">
+          <p class="macro-num" id="diet-protein">0<span>g</span></p><p class="macro-cap">蛋白质</p>
+        </div>
+      </div>
+      <div class="bar"><div class="bar-fill" id="diet-bar"></div></div>
+    </div>
+
+    <div id="diet-list" class="meal-groups"></div>
+    <div class="bottom-space"></div>
+    <button class="fab accent-teal" data-open="meal">＋ 记一餐</button>
+  </section>
+
+  <!-- ================= TRAINING ================= -->
+  <section class="screen" data-screen="training" hidden>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">今天练了什么</p>
+        <h1 class="screen-title">训练</h1>
+      </div>
+      <div class="date-nav">
+        <button class="icon-btn sm" data-date="training" data-dir="-1" aria-label="前一天">‹</button>
+        <span id="training-date" class="date-chip">今天</span>
+        <button class="icon-btn sm" data-date="training" data-dir="1" aria-label="后一天">›</button>
+      </div>
+    </header>
+
+    <div class="progress-card accent-coral">
+      <div class="progress-top">
+        <div><p class="pc-big"><span id="train-vol">0</span> <span class="pc-small">kg · 总容量</span></p>
+          <p class="pc-cap"><span id="train-count">0</span> 个动作 · 约消耗 <span id="train-burn">0</span> kcal</p></div>
+      </div>
+    </div>
+
+    <div id="training-list" class="stack"></div>
+    <div class="bottom-space"></div>
+    <button class="fab accent-coral" data-open="workout">＋ 加动作</button>
+  </section>
+
+  <!-- ================= STATS ================= -->
+  <section class="screen" data-screen="stats" hidden>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">走势</p>
+        <h1 class="screen-title">数据</h1>
+      </div>
+      <button class="pill-btn" data-open="weight">＋ 记体重</button>
+    </header>
+
+    <div class="stat-card">
+      <div class="section-head tight">
+        <h2>体重趋势</h2>
+        <span class="trend" id="weight-trend">—</span>
+      </div>
+      <div id="weight-chart" class="chart"></div>
+      <p class="chart-empty" id="weight-empty">还没有体重记录,点右上角记一次吧。</p>
+    </div>
+
+    <div class="stat-card">
+      <div class="section-head tight"><h2>近 7 天能量收支</h2></div>
+      <div id="energy-chart" class="chart"></div>
+      <div class="chart-legend">
+        <span><i class="sw sw-in"></i>摄入</span>
+        <span><i class="sw sw-out"></i>消耗</span>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="section-head tight"><h2>本周概览</h2></div>
+      <div class="week-grid">
+        <div><p class="wk-num" id="wk-deficit">0</p><p class="wk-cap">累计缺口 kcal</p></div>
+        <div><p class="wk-num" id="wk-trained">0</p><p class="wk-cap">训练天数</p></div>
+        <div><p class="wk-num" id="wk-logged">0</p><p class="wk-cap">记录天数</p></div>
+      </div>
+    </div>
+    <div class="bottom-space"></div>
+  </section>
+
+  <!-- ================= BOTTOM NAV ================= -->
+  <nav class="tabbar">
+    <button class="tab active" data-goto="today">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+      <span>今天</span>
+    </button>
+    <button class="tab" data-goto="diet">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 3v7a3 3 0 0 0 3 3v8M7 3v6M10 3v6M18 3c-1.5 0-3 2-3 6s1.5 4 3 4v8"/></svg>
+      <span>饮食</span>
+    </button>
+    <button class="tab" data-goto="training">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6.5 6.5l11 11M3 8l2-2M8 3L6 5M16 21l2-2M21 16l-2 2M4 12l-1.5 1.5a2.1 2.1 0 0 0 3 3L7 15M20 12l1.5-1.5a2.1 2.1 0 0 0-3-3L17 9"/></svg>
+      <span>训练</span>
+    </button>
+    <button class="tab" data-goto="stats">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
+      <span>数据</span>
+    </button>
+  </nav>
+
+  <!-- ================= SHEETS ================= -->
+  <div class="sheet-backdrop" id="backdrop" hidden></div>
+
+  <!-- Meal sheet -->
+  <div class="sheet" id="sheet-meal" hidden>
+    <div class="sheet-grip"></div>
+    <h3 class="sheet-title">记一餐</h3>
+    <div class="seg" id="meal-type">
+      <button data-v="早餐" class="active">早餐</button>
+      <button data-v="午餐">午餐</button>
+      <button data-v="晚餐">晚餐</button>
+      <button data-v="加餐">加餐</button>
+    </div>
+    <label class="field"><span>吃了什么</span>
+      <input id="meal-name" type="text" placeholder="如 鸡胸肉 + 西兰花" autocomplete="off" /></label>
+    <div class="field-row">
+      <label class="field"><span>热量 (kcal)</span>
+        <input id="meal-kcal" type="number" inputmode="numeric" placeholder="0" /></label>
+      <label class="field"><span>蛋白质 (g)</span>
+        <input id="meal-protein" type="number" inputmode="numeric" placeholder="选填" /></label>
+    </div>
+    <button class="primary accent-teal" id="save-meal">保存</button>
+  </div>
+
+  <!-- Workout sheet -->
+  <div class="sheet" id="sheet-workout" hidden>
+    <div class="sheet-grip"></div>
+    <h3 class="sheet-title">加一个动作</h3>
+    <div class="seg" id="workout-cat">
+      <button data-v="力量" class="active">力量</button>
+      <button data-v="有氧">有氧</button>
+      <button data-v="徒手">徒手</button>
+    </div>
+    <label class="field"><span>动作名称</span>
+      <input id="wo-name" type="text" placeholder="如 卧推 / 跑步" autocomplete="off" /></label>
+
+    <!-- strength / bodyweight sets -->
+    <div id="sets-block">
+      <div class="sets-head"><span>组</span><span id="sets-col-w">重量 kg</span><span>次数</span><span></span></div>
+      <div id="sets-list"></div>
+      <button class="add-set" id="add-set">＋ 加一组</button>
+    </div>
+
+    <!-- cardio fields -->
+    <div id="cardio-block" hidden>
+      <div class="field-row">
+        <label class="field"><span>时长 (分钟)</span>
+          <input id="wo-duration" type="number" inputmode="numeric" placeholder="0" /></label>
+        <label class="field"><span>距离 (km)</span>
+          <input id="wo-distance" type="number" inputmode="decimal" placeholder="选填" /></label>
+      </div>
+      <label class="field"><span>消耗 (kcal)</span>
+        <input id="wo-burn" type="number" inputmode="numeric" placeholder="选填,留空自动估算" /></label>
+    </div>
+
+    <button class="primary accent-coral" id="save-workout">保存</button>
+  </div>
+
+  <!-- Weight sheet -->
+  <div class="sheet" id="sheet-weight" hidden>
+    <div class="sheet-grip"></div>
+    <h3 class="sheet-title">记录体重</h3>
+    <label class="field"><span>今日体重 (kg)</span>
+      <input id="weight-input" type="number" inputmode="decimal" placeholder="0.0" /></label>
+    <button class="primary accent-teal" id="save-weight">保存</button>
+  </div>
+
+  <!-- Settings sheet -->
+  <div class="sheet" id="sheet-settings" hidden>
+    <div class="sheet-grip"></div>
+    <h3 class="sheet-title">设置</h3>
+    <label class="field"><span>你的名字</span>
+      <input id="set-name" type="text" placeholder="选填" autocomplete="off" /></label>
+    <div class="field-row">
+      <label class="field"><span>每日热量目标</span>
+        <input id="set-target" type="number" inputmode="numeric" placeholder="1600" /></label>
+      <label class="field"><span>基础代谢 BMR</span>
+        <input id="set-bmr" type="number" inputmode="numeric" placeholder="1400" /></label>
+    </div>
+    <p class="hint">净缺口 = 消耗(基础代谢 + 训练) − 摄入。想减脂,让它保持正数就好。</p>
+    <button class="primary accent-teal" id="save-settings">保存</button>
+    <button class="text-btn danger" id="export-data">导出数据备份</button>
+  </div>
+
+</div>
+<div id="toast" class="toast" hidden></div>
+<script src="app.js"></script>
+</body>
+</html>

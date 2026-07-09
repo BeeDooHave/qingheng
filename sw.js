@@ -1,5 +1,5 @@
 // 轻衡 Service Worker — app-shell offline caching
-const CACHE = 'qingheng-v7';
+const CACHE = 'qingheng-v8';
 const ASSETS = [
   './',
   './index.html',
@@ -23,20 +23,23 @@ self.addEventListener('activate', (e) => {
   );
 });
 
-// Cache-first for app shell, fall back to network.
+// Network-first for our own app shell: always try the dev server for the
+// freshest code, update the cache, and fall back to cache only when offline.
+// This keeps the home-screen PWA auto-updating (open the app → latest code),
+// no manual refresh needed. Cross-origin requests (e.g. the GitHub Gist API)
+// are left untouched so they always hit the live network — never cached.
 self.addEventListener('fetch', (e) => {
   const { request } = e;
   if (request.method !== 'GET') return;
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return; // don't touch api.github.com etc.
   e.respondWith(
-    caches.match(request).then((cached) => {
-      if (cached) return cached;
-      return fetch(request)
-        .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(request, copy)).catch(() => {});
-          return res;
-        })
-        .catch(() => caches.match('./index.html'));
-    })
+    fetch(request)
+      .then((res) => {
+        const copy = res.clone();
+        caches.open(CACHE).then((c) => c.put(request, copy)).catch(() => {});
+        return res;
+      })
+      .catch(() => caches.match(request).then((cached) => cached || caches.match('./index.html')))
   );
 });

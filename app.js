@@ -567,6 +567,7 @@
     const safe = Object.assign({}, db);
     safe.settings = Object.assign({}, safe.settings);
     safe.settings.syncToken = '';
+    safe.settings.dsKey = '';
     const blob = new Blob([JSON.stringify(safe, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -617,11 +618,13 @@
     });
     const weights = Array.from(wmap.values()).sort((a, b) => a.date < b.date ? -1 : 1);
 
-    // settings: whole-object "newer wins" by ts, but syncToken/gistId always stay local
+    // settings: whole-object "newer wins" by ts, but secrets/local-only fields
+    // (syncToken, gistId, dsKey) always stay local — they are never synced.
     const ls = local.settings || {}, rs = remote.settings || {};
     const settings = ((Number(ls.ts) || 0) >= (Number(rs.ts) || 0)) ? Object.assign({}, rs, ls) : Object.assign({}, ls, rs);
     settings.syncToken = ls.syncToken || '';
     settings.gistId = ls.gistId || '';
+    settings.dsKey = ls.dsKey || '';
 
     // drop tombstones older than 90 days
     const cutoff = Date.now() - 90 * 86400000;
@@ -662,6 +665,7 @@
     copy.settings = Object.assign({}, copy.settings);
     copy.settings.syncToken = '';
     copy.settings.gistId = '';
+    copy.settings.dsKey = '';   // DeepSeek API key stays local — never upload a secret to the gist
     return { description: 'qingheng-sync', public: false, files: { 'qingheng.json': { content: JSON.stringify(copy) } } };
   }
 

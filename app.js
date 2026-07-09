@@ -814,6 +814,7 @@
       const btn = $('#mg-toggle'); if (btn) btn.textContent = mgOpen ? '收起 ▾' : '展开 ▸';
       return;
     }
+    if (e.target.closest('#force-refresh')) { hardRefresh(); return; }
     if (e.target.id === 'backdrop') { closeSheet(); return; }
     const ed = e.target.closest('[data-edit]');
     if (ed && !e.target.closest('[data-del]')) { startEdit(ed.dataset.edit, ed.dataset.id); return; }
@@ -825,6 +826,23 @@
       sel[scr] = next; render(scr);
     }
   });
+
+  /* ---------- force refresh (nuke SW + caches, reload fresh) ---------- */
+  async function hardRefresh() {
+    toast('正在拿最新版…');
+    try {
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map(r => r.unregister()));
+      }
+      if (window.caches) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map(k => caches.delete(k)));
+      }
+    } catch (e) { /* ignore */ }
+    // reload with a cache-busting query so nothing comes from a stale cache
+    location.replace(location.pathname + '?u=' + Date.now());
+  }
 
   /* ---------- toast ---------- */
   let toastT;

@@ -211,12 +211,29 @@
     const tgt = Number(item.t) || 0;
     const pct = tgt > 0 ? Math.round(got / tgt * 100) : 0;
     const over = pct >= 100;
-    return `<div class="mg-item${item.star ? ' star' : ''}">
+    return `<div class="mg-item${item.star ? ' star' : ''}" data-nutrient="${esc(item.k)}" data-unit="${esc(item.u)}">
       <div class="mg-row1"><span class="mg-n">${esc(item.n)} <span class="mg-en">${esc(item.en)}</span>${item.soft ? '<span class="mg-tag">AI粗估</span>' : ''}</span>
         <span class="mg-amt${over ? ' done' : ''}">${fmtN(got)} / ${fmtN(tgt)} ${esc(item.u)}<b>${pct}%</b></span></div>
       <div class="mg-bar"><div class="mg-fill${over ? ' over' : ''}" style="width:${Math.min(pct, 100)}%"></div></div>
       <p class="mg-src">来源:${esc(item.src)}${item.soft ? ' · 软参考目标' : ''}</p>
+      <div class="mg-detail" hidden></div>
     </div>`;
+  }
+  // 某营养素当天由哪几餐贡献(micros 按整餐存,故按餐拆分)
+  function nutrientBreakdown(dk, key) {
+    const isMacro = key === 'protein' || key === 'fat' || key === 'carbs';
+    return mealsOn(dk).map(m => {
+      const nu = m.nutrients, mi = nu && nu.micros;
+      let v = 0;
+      if (isMacro) {
+        v = (nu && nu.total && nu.total[key] != null) ? Number(nu.total[key]) || 0 : (key === 'protein' ? Number(m.protein) || 0 : 0);
+      } else if (mi) {
+        v = mi[key];
+        if ((v == null || v === '') && OLD_MICRO_ALIAS[key] != null && mi[OLD_MICRO_ALIAS[key]] != null) v = parseFloat(String(mi[OLD_MICRO_ALIAS[key]]));
+        v = Number(v) || 0;
+      }
+      return { name: m.name || m.type, v };
+    }).filter(x => x.v > 0).sort((a, b) => b.v - a.v);
   }
   function progressHtml(dk) {
     const got = nutritionOn(dk);
@@ -232,7 +249,7 @@
         <p class="mg-gnote">${esc(g.note)}</p>
         ${g.items.map(it => progRow(it, got[it.k] || 0)).join('')}
       </div>`).join('') +
-      `<p class="mg-foot">进度只统计用 ✨AI 估算过的餐(手动记的餐仅计蛋白/热量)。想把旧餐算进来:编辑它 → 再点一次「AI 估算」即可。目标参考 NIH DRI(统一男性值)与相关研究;植物化合物为软目标。仅供参考,非医疗建议。</p>`;
+      `<p class="mg-foot">💡 点任意营养素可展开看是哪几餐贡献的。进度只统计用 ✨AI 估算过的餐(手动记的餐仅计蛋白/热量)。想把旧餐算进来:编辑它 → 再点一次「AI 估算」即可。目标参考 NIH DRI(统一男性值)与相关研究;植物化合物为软目标。仅供参考,非医疗建议。</p>`;
   }
   let mgOpen = true, mgOpenD = true;
   function renderNutritionProgress() {
@@ -947,6 +964,19 @@
       mgOpenD = !mgOpenD;
       const box = $('#diet-micro'); if (box) box.hidden = !mgOpenD;
       const btn = $('#mg-toggle-d'); if (btn) btn.textContent = mgOpenD ? '收起 ▾' : '展开 ▸';
+      return;
+    }
+    const nutItem = e.target.closest('.mg-item[data-nutrient]');
+    if (nutItem) {
+      const dk = nutItem.closest('#diet-micro') ? sel.diet : sel.today;
+      const det = nutItem.querySelector('.mg-detail'); if (!det) return;
+      if (det.dataset.open === '1') { det.hidden = true; det.dataset.open = '0'; return; }
+      const list = nutrientBreakdown(dk, nutItem.dataset.nutrient);
+      const unit = nutItem.dataset.unit || '';
+      det.innerHTML = list.length
+        ? list.map(x => `<div class="mg-detrow"><span>${esc(x.name)}</span><b>${fmtN(x.v)} ${esc(unit)}</b></div>`).join('')
+        : `<div class="mg-detrow muted">这天没有含此项的记录(或该餐未用 AI 估算)</div>`;
+      det.hidden = false; det.dataset.open = '1';
       return;
     }
     if (e.target.closest('#force-refresh')) { hardRefresh(); return; }

@@ -232,3 +232,9 @@ input{font-family:inherit}
 .datebtn{font-size:17px;font-weight:700;color:var(--muted);line-height:1;padding:2px 6px;border-radius:8px}
 .datebtn:active{background:var(--line)}
 .dbg-out{width:100%;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;line-height:1.45;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:10px;resize:vertical;white-space:pre;overflow:auto}
+.mg-item[data-nutrient]{cursor:pointer}
+.mg-detail{margin-top:8px;border-top:1px dashed var(--line);padding-top:6px}
+.mg-detrow{display:flex;justify-content:space-between;gap:12px;font-size:12.5px;padding:3px 0;color:var(--ink)}
+.mg-detrow span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mg-detrow b{color:var(--teal-ink);font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.mg-detrow.muted{color:var(--muted-2)}

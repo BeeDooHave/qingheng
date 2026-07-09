@@ -273,11 +273,12 @@
       <input id="set-synctoken" type="password" placeholder="ghp_... / github_pat_..." autocomplete="off" /></label>
     <label class="field"><span>Gist ID</span>
       <input id="set-gistid" type="text" placeholder="首次同步自动生成" autocomplete="off" /></label>
-    <p class="hint">在 GitHub 生成一个只勾 gist 权限的 fine-grained token 粘到上面,首次点同步会自动建私有 gist。第二台设备填同一个 token,再把这里显示的 Gist ID 粘过去。</p>
+    <p class="hint">在 GitHub 生成一个只勾 gist 权限的 <b>classic</b> token(fine-grained 不支持 gist)粘到上面,首次点同步会自动建私有 gist。第二台设备填同一个 token,再把这里显示的 Gist ID 粘过去。</p>
     <button class="text-btn" id="sync-now">☁️ 立即同步</button>
     <p class="hint" id="sync-status">从未同步</p>
 
     <button class="text-btn danger" id="export-data">导出数据备份</button>
+    <p class="hint" id="app-version" style="text-align:center;opacity:.55">轻衡 v9</p>
   </div>
 
 </div>

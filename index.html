@@ -11,7 +11,7 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
   <link rel="icon" href="favicon-64.png" />
-  <link rel="stylesheet" href="styles.css?v=21" />
+  <link rel="stylesheet" href="styles.css?v=22" />
 </head>
 <body>
 <div id="app">
@@ -214,8 +214,14 @@
       <button data-v="晚餐">晚餐</button>
       <button data-v="加餐">加餐</button>
     </div>
-    <label class="field"><span>吃了什么</span>
-      <input id="meal-name" type="text" placeholder="如 鸡胸肉150g、西兰花一份" autocomplete="off" /></label>
+    <p class="food-head">吃了什么(一行一个食物)</p>
+    <div id="food-rows"></div>
+    <div class="food-chips" id="food-chips"></div>
+    <button class="add-food" id="add-food">＋ 添加食物</button>
+    <details class="freetext">
+      <summary>或直接整段输入 ▾</summary>
+      <input id="meal-name" type="text" placeholder="如 鸡胸肉150g、西兰花一份" autocomplete="off" />
+    </details>
     <button class="ai-btn" id="ai-estimate">✨ AI 估算营养</button>
     <div id="ai-result" hidden></div>
     <div class="field-row">
@@ -310,11 +316,11 @@
     <button class="text-btn danger" id="export-data">导出数据备份</button>
     <button class="text-btn" id="force-refresh">🔄 强制刷新(拿最新版)</button>
     <button class="text-btn" data-open="debug">🐞 诊断信息</button>
-    <p class="hint" id="app-version" style="text-align:center;opacity:.55">轻衡 v21</p>
+    <p class="hint" id="app-version" style="text-align:center;opacity:.55">轻衡 v22</p>
   </div>
 
 </div>
 <div id="toast" class="toast" hidden></div>
-<script src="app.js?v=21"></script>
+<script src="app.js?v=22"></script>
 </body>
 </html>

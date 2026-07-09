@@ -238,3 +238,20 @@ input{font-family:inherit}
 .mg-detrow span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mg-detrow b{color:var(--teal-ink);font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
 .mg-detrow.muted{color:var(--muted-2)}
+/* ---------- food-row meal input ---------- */
+.food-head{font-size:13px;font-weight:600;color:var(--muted);margin:2px 0 10px}
+.food-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.food-row input{padding:11px 12px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);font-size:15px}
+.food-row .fr-name{flex:1;min-width:0}
+.food-row .fr-amt{width:66px;text-align:right}
+.fr-unit{flex:none;width:46px;height:44px;border:1px solid var(--line);border-radius:12px;background:var(--paper);font-size:14px;font-weight:700;color:var(--teal-ink)}
+.fr-del{flex:none;width:32px;height:44px;color:var(--muted-2);font-size:16px}
+.food-chips{display:flex;gap:8px;overflow-x:auto;padding:2px 0 8px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.food-chips::-webkit-scrollbar{display:none}
+.food-chips .chip{flex:none;padding:7px 13px;border-radius:999px;border:1px solid transparent;background:var(--teal-wash);color:var(--teal-ink);font-size:13px;font-weight:600;white-space:nowrap}
+.food-chips .chip:active{background:var(--teal);color:#fff}
+.add-food{font-size:14px;font-weight:700;color:var(--teal-ink);padding:6px 2px}
+.freetext{margin:6px 0 4px}
+.freetext summary{font-size:12.5px;color:var(--muted);cursor:pointer;list-style:none;padding:4px 0}
+.freetext summary::-webkit-details-marker{display:none}
+.freetext input{width:100%;margin-top:8px;padding:11px 12px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);font-size:15px}

@@ -499,7 +499,16 @@
       editing.meal = id;
       mealType = m.type;
       $$('#meal-type button').forEach(b => b.classList.toggle('active', b.dataset.v === m.type));
-      $('#meal-name').value = m.name || '';
+      $('#meal-name').value = '';
+      renderFoodChips(); clearFoodRows();
+      const items = m.nutrients && Array.isArray(m.nutrients.items) ? m.nutrients.items : null;
+      if (items && items.length) {
+        items.forEach(it => { const p = parseAmount(it.amount); addFoodRow(it.name || '', p.amt, p.unit, null); });
+      } else {
+        const parts = (m.name || '').split(/[、,，]/).map(s => s.trim()).filter(Boolean);
+        if (parts.length) parts.forEach(p => { const s = splitNameAmount(p); addFoodRow(s.name, s.amt, s.unit, null); });
+        else addFoodRow('', '', 'g', null);
+      }
       $('#meal-kcal').value = m.kcal || '';
       $('#meal-protein').value = m.protein || '';
       if (m.nutrients) { aiNutrients = m.nutrients; showAiResult(m.nutrients); }
@@ -526,6 +535,70 @@
 
   /* ---------- meal sheet ---------- */
   let mealType = '早餐';
+  /* ---------- food-row input builder ---------- */
+  const FR_UNITS = ['g', '个', '碗', 'ml'];
+  function addFoodRow(name, amt, unit, focusField) {
+    const box = $('#food-rows'); if (!box) return;
+    const u = FR_UNITS.indexOf(unit) >= 0 ? unit : 'g';
+    const row = document.createElement('div');
+    row.className = 'food-row';
+    row.innerHTML =
+      `<input class="fr-name" placeholder="食物名" value="${esc(name || '')}" autocomplete="off" />` +
+      `<input class="fr-amt" type="number" inputmode="decimal" placeholder="量" value="${esc(amt || '')}" />` +
+      `<button class="fr-unit" data-unit="${esc(u)}">${esc(u)}</button>` +
+      `<button class="fr-del" aria-label="删除">✕</button>`;
+    box.appendChild(row);
+    if (focusField) setTimeout(() => { const f = row.querySelector(focusField === 'amt' ? '.fr-amt' : '.fr-name'); if (f) f.focus(); }, 60);
+  }
+  function clearFoodRows() { const b = $('#food-rows'); if (b) b.innerHTML = ''; }
+  function cycleUnit(btn) {
+    const next = FR_UNITS[(FR_UNITS.indexOf(btn.dataset.unit) + 1) % FR_UNITS.length];
+    btn.dataset.unit = next; btn.textContent = next;
+  }
+  function readMealInput() {
+    const box = $('#food-rows');
+    const rows = box ? [...box.querySelectorAll('.food-row')].map(r => ({
+      name: r.querySelector('.fr-name').value.trim(),
+      amt: r.querySelector('.fr-amt').value.trim(),
+      unit: r.querySelector('.fr-unit').dataset.unit || 'g'
+    })).filter(r => r.name) : [];
+    if (rows.length) return rows.map(r => r.name + (r.amt ? r.amt + r.unit : '')).join('、');
+    return $('#meal-name') ? $('#meal-name').value.trim() : '';
+  }
+  function parseAmount(s) {
+    s = String(s || '');
+    const num = (s.match(/[\d.]+/) || [''])[0];
+    let unit = 'g';
+    if (/个/.test(s)) unit = '个'; else if (/碗/.test(s)) unit = '碗'; else if (/ml|毫升/i.test(s)) unit = 'ml';
+    return { amt: num, unit };
+  }
+  function splitNameAmount(s) {
+    s = String(s || '').trim();
+    const m = s.match(/^(.*?)([\d.]+)\s*(g|克|个|碗|ml|毫升)?$/);
+    if (m && m[1].trim()) return { name: m[1].trim(), amt: m[2], unit: parseAmount(m[2] + (m[3] || '')).unit };
+    return { name: s, amt: '', unit: 'g' };
+  }
+  function frequentFoods(n) {
+    const seen = [];
+    db.meals.slice().sort((a, b) => (b.ts || 0) - (a.ts || 0)).forEach(m => {
+      const items = m.nutrients && m.nutrients.items;
+      if (items) items.forEach(it => { const nm = (it.name || '').trim(); if (nm && seen.indexOf(nm) < 0) seen.push(nm); });
+    });
+    return seen.slice(0, n);
+  }
+  function renderFoodChips() {
+    const box = $('#food-chips'); if (!box) return;
+    const foods = frequentFoods(10);
+    if (foods.length < 5) ['水煮鸡胸肉', '鸡蛋', '米饭', '西兰花', '蒸紫薯', '牛奶', '菠菜'].forEach(f => { if (foods.indexOf(f) < 0) foods.push(f); });
+    box.innerHTML = foods.slice(0, 10).map(f => `<button class="chip" data-food="${esc(f)}">${esc(f)}</button>`).join('');
+  }
+  document.addEventListener('click', e => {
+    const chip = e.target.closest('#food-chips .chip'); if (chip) { addFoodRow(chip.dataset.food, '', 'g', 'amt'); return; }
+    if (e.target.closest('#add-food')) { addFoodRow('', '', 'g', 'name'); return; }
+    const u = e.target.closest('.fr-unit'); if (u) { cycleUnit(u); return; }
+    const del = e.target.closest('.fr-del'); if (del) { const r = del.closest('.food-row'); if (r) r.remove(); return; }
+  });
+
   function resetMealSheet() {
     editing.meal = null;
     resetAi();
@@ -533,6 +606,8 @@
     mealType = '早餐';
     $$('#meal-type button').forEach(b => b.classList.toggle('active', b.dataset.v === '早餐'));
     $('#meal-name').value = ''; $('#meal-kcal').value = ''; $('#meal-protein').value = '';
+    clearFoodRows(); addFoodRow('', '', 'g', null); renderFoodChips();
+    const ft = $('#sheet-meal .freetext'); if (ft) ft.open = false;
     // smart default by time
     const hr = new Date().getHours();
     const def = hr < 10 ? '早餐' : hr < 15 ? '午餐' : hr < 21 ? '晚餐' : '加餐';
@@ -544,7 +619,7 @@
     mealType = b.dataset.v; $$('#meal-type button').forEach(x => x.classList.toggle('active', x === b));
   });
   $('#save-meal').addEventListener('click', () => {
-    const name = $('#meal-name').value.trim();
+    const name = readMealInput();
     const kcal = parseInt($('#meal-kcal').value, 10);
     if (!kcal || kcal <= 0) { toast('填一下热量吧'); return; }
     const payload = { type: mealType, name, kcal, protein: parseInt($('#meal-protein').value, 10) || 0, ts: Date.now() };
@@ -639,7 +714,7 @@
   }
 
   $('#ai-estimate').addEventListener('click', async () => {
-    const text = $('#meal-name').value.trim();
+    const text = readMealInput();
     if (!text) { toast('先填一下吃了什么'); return; }
     if (!db.settings.dsKey) { toast('先在设置里填 DeepSeek API Key'); return; }
     if (!navigator.onLine) { toast('离线状态无法估算'); return; }

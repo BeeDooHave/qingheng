@@ -11,7 +11,7 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
   <link rel="icon" href="favicon-64.png" />
-  <link rel="stylesheet" href="styles.css?v=14" />
+  <link rel="stylesheet" href="styles.css?v=15" />
 </head>
 <body>
 <div id="app">
@@ -101,6 +101,13 @@
     </div>
 
     <div id="diet-list" class="meal-groups"></div>
+
+    <div class="section-head">
+      <h2>营养进度</h2>
+      <button class="ghost-btn" id="mg-toggle-d">收起 ▾</button>
+    </div>
+    <div id="diet-micro"></div>
+
     <div class="bottom-space"></div>
     <button class="fab accent-teal" data-open="meal">＋ 记一餐</button>
   </section>
@@ -286,11 +293,11 @@
 
     <button class="text-btn danger" id="export-data">导出数据备份</button>
     <button class="text-btn" id="force-refresh">🔄 强制刷新(拿最新版)</button>
-    <p class="hint" id="app-version" style="text-align:center;opacity:.55">轻衡 v14</p>
+    <p class="hint" id="app-version" style="text-align:center;opacity:.55">轻衡 v15</p>
   </div>
 
 </div>
 <div id="toast" class="toast" hidden></div>
-<script src="app.js?v=14"></script>
+<script src="app.js?v=15"></script>
 </body>
 </html>

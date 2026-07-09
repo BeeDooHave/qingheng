@@ -169,11 +169,11 @@
   }
   // 旧格式 micros 用中文字符串 key(如 "维生素C":"60 mg"),映射到新数字 key 做兼容
   const OLD_MICRO_ALIAS = { ca: '钙', fe: '铁', zn: '锌', k: '钾', vitC: '维生素C', vitA: '维生素A' };
-  // 汇总今天所有餐:宏量(含手动餐蛋白)+ 微量(AI 估算过的餐;旧格式做兼容解析)
-  function todayNutrition() {
+  // 汇总某天所有餐:宏量(含手动餐蛋白)+ 微量(AI 估算过的餐;旧格式做兼容解析)
+  function nutritionOn(dk) {
     const acc = { protein: 0, fat: 0, carbs: 0 };
     MICROS.forEach(m => acc[m.k] = 0);
-    mealsOn(todayKey).forEach(meal => {
+    mealsOn(dk).forEach(meal => {
       const nu = meal.nutrients, t = (nu && nu.total) || null;
       acc.protein += (t && t.protein != null) ? Number(t.protein) || 0 : Number(meal.protein) || 0;
       if (t) { acc.fat += Number(t.fat) || 0; acc.carbs += Number(t.carbs) || 0; }
@@ -201,24 +201,30 @@
       <p class="mg-src">来源:${esc(item.src)}${item.soft ? ' · 软参考目标' : ''}</p>
     </div>`;
   }
-  let mgOpen = true;
-  function renderNutritionProgress() {
-    const box = $('#micro-guide'); if (!box) return;
-    box.hidden = !mgOpen;
-    const got = todayNutrition();
+  function progressHtml(dk) {
+    const got = nutritionOn(dk);
     const groups = [
       { title: '🔥 三大营养素', note: '目标据热量目标 / 最近体重推算', items: macroTargets() },
       { title: '🫐 抗氧化植物化合物', note: '软参考目标 · AI 粗估,仅看趋势', items: MICROS.filter(m => m.grp === 'phyto') },
       { title: '🍊 抗氧化维生素', note: '男性 RDA', items: MICROS.filter(m => m.grp === 'vit') },
       { title: '⚙️ 矿物质', note: '男性 RDA / AI', items: MICROS.filter(m => m.grp === 'min') }
     ];
-    box.innerHTML = groups.map(g => `
+    return groups.map(g => `
       <div class="mg-group">
         <p class="mg-gtitle">${esc(g.title)}</p>
         <p class="mg-gnote">${esc(g.note)}</p>
         ${g.items.map(it => progRow(it, got[it.k] || 0)).join('')}
       </div>`).join('') +
       `<p class="mg-foot">进度只统计用 ✨AI 估算过的餐(手动记的餐仅计蛋白/热量)。想把旧餐算进来:编辑它 → 再点一次「AI 估算」即可。目标参考 NIH DRI(统一男性值)与相关研究;植物化合物为软目标。仅供参考,非医疗建议。</p>`;
+  }
+  let mgOpen = true, mgOpenD = true;
+  function renderNutritionProgress() {
+    const box = $('#micro-guide'); if (!box) return;
+    box.hidden = !mgOpen; box.innerHTML = progressHtml(todayKey);
+  }
+  function renderDietProgress() {
+    const box = $('#diet-micro'); if (!box) return;
+    box.hidden = !mgOpenD; box.innerHTML = progressHtml(sel.diet);
   }
 
   /* ---------- row templates ---------- */
@@ -277,6 +283,7 @@
         <div class="stack">${items.map(m => rowMeal(m, true)).join('')}</div></div>`;
     }).filter(Boolean).join('');
     $('#diet-list').innerHTML = groups || `<div class="empty">这天还没有饮食记录<br>点下面「记一餐」开始</div>`;
+    renderDietProgress();
   }
 
   /* ---------- TRAINING ---------- */
@@ -866,6 +873,12 @@
       mgOpen = !mgOpen;
       const box = $('#micro-guide'); if (box) box.hidden = !mgOpen;
       const btn = $('#mg-toggle'); if (btn) btn.textContent = mgOpen ? '收起 ▾' : '展开 ▸';
+      return;
+    }
+    if (e.target.closest('#mg-toggle-d')) {
+      mgOpenD = !mgOpenD;
+      const box = $('#diet-micro'); if (box) box.hidden = !mgOpenD;
+      const btn = $('#mg-toggle-d'); if (btn) btn.textContent = mgOpenD ? '收起 ▾' : '展开 ▸';
       return;
     }
     if (e.target.closest('#force-refresh')) { hardRefresh(); return; }

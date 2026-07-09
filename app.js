@@ -5,15 +5,19 @@
   /* ---------- storage ---------- */
   const KEY = 'qingheng.v1';
   const defaults = {
-    meals: [],      // {id,date,type,name,kcal,protein}
-    workouts: [],   // {id,date,cat,name,sets:[{w,reps}],duration,distance,burn}
-    weights: [],    // {date,kg}
-    settings: { name: '', target: 1600, bmr: 1400 }
+    meals: [],      // {id,date,type,name,kcal,protein,ts}
+    workouts: [],   // {id,date,cat,name,sets:[{w,reps}],duration,distance,burn,ts}
+    weights: [],    // {date,kg,ts}
+    settings: { name: '', target: 1600, bmr: 1400, dsKey: '', syncToken: '', gistId: '', ts: 0 },
+    tombstones: {}, // { <记录id>: <删除时间戳ms> }
+    syncedAt: 0      // 上次成功同步时间戳,仅本地展示
   };
   let db;
   try {
     db = Object.assign({}, defaults, JSON.parse(localStorage.getItem(KEY) || '{}'));
     db.settings = Object.assign({}, defaults.settings, db.settings || {});
+    db.tombstones = Object.assign({}, db.tombstones || {});
+    db.syncedAt = db.syncedAt || 0;
   } catch (e) { db = JSON.parse(JSON.stringify(defaults)); }
 
   function save() {
@@ -129,7 +133,7 @@
 
   /* ---------- row templates ---------- */
   function rowMeal(m, del) {
-    return `<div class="row">
+    return `<div class="row" data-edit="meal" data-id="${m.id}">
       <div class="r-icon i-teal">${mealEmoji(m.type)}</div>
       <div class="r-body"><p class="r-title">${esc(m.name || m.type)}</p>
         <p class="r-sub">${m.type}${m.protein ? ' · 蛋白 ' + m.protein + 'g' : ''}</p></div>
@@ -149,7 +153,7 @@
       const vol = sets.reduce((a, s) => a + (Number(s.w) || 0) * (Number(s.reps) || 0), 0);
       val = vol ? `${vol}<small>kg·量</small>` : `${sets.reduce((a, s) => a + (Number(s.reps) || 0), 0)}<small>次</small>`;
     }
-    return `<div class="row">
+    return `<div class="row" data-edit="workout" data-id="${w.id}">
       <div class="r-icon i-coral">${catEmoji(w.cat)}</div>
       <div class="r-body"><p class="r-title">${esc(w.name || w.cat)}</p><p class="r-sub">${w.cat} · ${sub}</p></div>
       <p class="r-val">${val}</p>
@@ -290,9 +294,47 @@
     $('#backdrop').hidden = true; openSheet = null;
   }
 
+  /* ---------- editing state ---------- */
+  const editing = { meal: null, workout: null };
+
+  function startEdit(kind, id) {
+    if (kind === 'meal') {
+      const m = db.meals.find(x => x.id === id); if (!m) return;
+      open('meal');
+      editing.meal = id;
+      mealType = m.type;
+      $$('#meal-type button').forEach(b => b.classList.toggle('active', b.dataset.v === m.type));
+      $('#meal-name').value = m.name || '';
+      $('#meal-kcal').value = m.kcal || '';
+      $('#meal-protein').value = m.protein || '';
+      if (m.nutrients) { aiNutrients = m.nutrients; showAiResult(m.nutrients); }
+      $('#sheet-meal .sheet-title').textContent = '编辑这一餐';
+    } else {
+      const w = db.workouts.find(x => x.id === id); if (!w) return;
+      open('workout');
+      editing.workout = id;
+      woCat = w.cat;
+      $$('#workout-cat button').forEach(b => b.classList.toggle('active', b.dataset.v === w.cat));
+      $('#wo-name').value = w.name || '';
+      if (w.cat === '有氧') {
+        $('#wo-duration').value = w.duration || '';
+        $('#wo-distance').value = w.distance || '';
+        $('#wo-burn').value = w.burn || '';
+      } else {
+        setsData = (w.sets || []).map(s => ({ w: s.w || '', reps: s.reps || '' }));
+        if (!setsData.length) setsData = [{ w: '', reps: '' }];
+      }
+      applyCat();
+      $('#sheet-workout .sheet-title').textContent = '编辑动作';
+    }
+  }
+
   /* ---------- meal sheet ---------- */
   let mealType = '早餐';
   function resetMealSheet() {
+    editing.meal = null;
+    resetAi();
+    $('#sheet-meal .sheet-title').textContent = '记一餐';
     mealType = '早餐';
     $$('#meal-type button').forEach(b => b.classList.toggle('active', b.dataset.v === '早餐'));
     $('#meal-name').value = ''; $('#meal-kcal').value = ''; $('#meal-protein').value = '';
@@ -310,14 +352,114 @@
     const name = $('#meal-name').value.trim();
     const kcal = parseInt($('#meal-kcal').value, 10);
     if (!kcal || kcal <= 0) { toast('填一下热量吧'); return; }
-    db.meals.push({ id: uid(), date: sel.diet, type: mealType, name, kcal, protein: parseInt($('#meal-protein').value, 10) || 0 });
-    save(); closeSheet(); toast('已记录 ' + kcal + ' kcal'); renderAll();
-    goto('diet');
+    const payload = { type: mealType, name, kcal, protein: parseInt($('#meal-protein').value, 10) || 0, ts: Date.now() };
+    if (aiNutrients) payload.nutrients = aiNutrients;
+    if (editing.meal) {
+      const m = db.meals.find(x => x.id === editing.meal);
+      if (m) Object.assign(m, payload);
+      editing.meal = null;
+      save(); scheduleSync(); closeSheet(); toast('已更新'); renderAll();
+    } else {
+      db.meals.push(Object.assign({ id: uid(), date: sel.diet }, payload));
+      save(); scheduleSync(); closeSheet(); toast('已记录 ' + kcal + ' kcal'); renderAll();
+      goto('diet');
+    }
+  });
+
+  /* ---------- AI nutrition ---------- */
+  let aiNutrients = null;
+  const AI_BTN_LABEL = '✨ AI 估算营养';
+  const AI_PROMPT = `你是营养估算助手。用户给出一餐吃的食物描述(中文,可能含模糊分量如"一碗""一份"),你按中国常见份量估算,输出 json,不要输出任何其他文字。格式:
+{"items":[{"name":"食物名","amount":"估算的量,如 150g / 1碗(约200g)","kcal":0,"protein":0,"fat":0,"carbs":0,"fiber":0}],
+"total":{"kcal":0,"protein":0,"fat":0,"carbs":0,"fiber":0},
+"micros":{"钙":"xx mg","铁":"xx mg","锌":"xx mg","钾":"xx mg","维生素C":"xx mg","维生素A":"xx μg"},
+"note":"一句话分量假设说明(可选)"}
+数值单位:kcal 为千卡,protein/fat/carbs/fiber 为克,保留整数或一位小数。如果输入不是食物,返回 {"error":"无法识别为食物"}。`;
+
+  function resetAi() {
+    aiNutrients = null;
+    const r = $('#ai-result'); r.hidden = true; r.innerHTML = '';
+    const b = $('#ai-estimate'); b.disabled = false; b.textContent = AI_BTN_LABEL;
+  }
+
+  async function estimateNutrition(text) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 30000);
+    try {
+      const res = await fetch('https://api.deepseek.com/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + db.settings.dsKey },
+        signal: ctrl.signal,
+        body: JSON.stringify({
+          model: 'deepseek-v4-flash',
+          thinking: { type: 'disabled' },
+          response_format: { type: 'json_object' },
+          max_tokens: 2000,
+          temperature: 0.3,
+          messages: [
+            { role: 'system', content: AI_PROMPT },
+            { role: 'user', content: text }
+          ]
+        })
+      });
+      if (res.status === 401) throw new Error('API Key 无效,检查设置里的 Key');
+      if (!res.ok) throw new Error('估算失败 (' + res.status + '),稍后再试');
+      const json = await res.json();
+      let data;
+      try { data = JSON.parse(json.choices[0].message.content); }
+      catch (e) { throw new Error('返回格式异常,再试一次'); }
+      if (data.error) throw new Error(String(data.error));
+      if (!Array.isArray(data.items) || !data.total || typeof data.total.kcal !== 'number') throw new Error('返回格式异常,再试一次');
+      return data;
+    } finally { clearTimeout(timer); }
+  }
+
+  function aiCard(d) {
+    const num = v => { const n = Number(v) || 0; return n % 1 ? n.toFixed(1) : Math.round(n); };
+    const items = (d.items || []).map(it =>
+      `<div class="ai-row"><span class="ai-name">${esc(it.name)}<small>${esc(it.amount || '')}</small></span><span class="ai-kcal">${Math.round(Number(it.kcal) || 0)} kcal</span></div>`).join('');
+    const t = d.total || {};
+    const micros = d.micros && typeof d.micros === 'object'
+      ? Object.entries(d.micros).map(([k, v]) => esc(k) + ' ' + esc(v)).join(' · ') : '';
+    return `<div class="ai-card">${items}
+      <div class="ai-total">合计 ${Math.round(Number(t.kcal) || 0)} kcal · 蛋白 ${num(t.protein)}g · 脂肪 ${num(t.fat)}g · 碳水 ${num(t.carbs)}g · 纤维 ${num(t.fiber)}g</div>
+      ${micros ? `<p class="ai-micros">${micros}</p>` : ''}
+      <p class="ai-note">AI 估算,仅供参考${d.note ? ' · ' + esc(d.note) : ''}</p>
+    </div>`;
+  }
+
+  function showAiResult(data) {
+    const r = $('#ai-result');
+    r.innerHTML = aiCard(data); r.hidden = false;
+  }
+
+  $('#ai-estimate').addEventListener('click', async () => {
+    const text = $('#meal-name').value.trim();
+    if (!text) { toast('先填一下吃了什么'); return; }
+    if (!db.settings.dsKey) { toast('先在设置里填 DeepSeek API Key'); return; }
+    if (!navigator.onLine) { toast('离线状态无法估算'); return; }
+    const btn = $('#ai-estimate');
+    btn.disabled = true; btn.textContent = '估算中…';
+    try {
+      const data = await estimateNutrition(text);
+      aiNutrients = data;
+      showAiResult(data);
+      $('#meal-kcal').value = Math.round(Number(data.total.kcal) || 0);
+      if (data.total.protein != null) $('#meal-protein').value = Math.round(Number(data.total.protein) || 0);
+    } catch (err) {
+      if (err.name === 'AbortError') toast('请求超时,稍后再试');
+      else if (err instanceof TypeError) toast('网络错误(可能是 CORS 拦截)');
+      else toast(err.message || '估算失败');
+    } finally {
+      btn.disabled = false; btn.textContent = AI_BTN_LABEL;
+    }
   });
 
   /* ---------- workout sheet ---------- */
   let woCat = '力量';
   function resetWorkoutSheet() {
+    editing.workout = null;
+    $('#sheet-workout .sheet-title').textContent = '加一个动作';
     woCat = '力量';
     $$('#workout-cat button').forEach(b => b.classList.toggle('active', b.dataset.v === '力量'));
     $('#wo-name').value = '';
@@ -361,7 +503,7 @@
   $('#save-workout').addEventListener('click', () => {
     const name = $('#wo-name').value.trim();
     if (!name) { toast('填一下动作名称'); return; }
-    const wo = { id: uid(), date: sel.training, cat: woCat, name };
+    const wo = { cat: woCat, name, ts: Date.now() };
     if (woCat === '有氧') {
       wo.duration = parseInt($('#wo-duration').value, 10) || 0;
       wo.distance = parseFloat($('#wo-distance').value) || 0;
@@ -374,9 +516,19 @@
         .map(s => ({ w: Number(s.w) || 0, reps: Number(s.reps) || 0 }));
       if (!wo.sets.length) { toast('至少填一组次数'); return; }
     }
-    db.workouts.push(wo);
-    save(); closeSheet(); toast('动作已记录 💪'); renderAll();
-    goto('training');
+    if (editing.workout) {
+      const w = db.workouts.find(x => x.id === editing.workout);
+      if (w) {
+        delete w.sets; delete w.duration; delete w.distance; delete w.burn;
+        Object.assign(w, wo);
+      }
+      editing.workout = null;
+      save(); scheduleSync(); closeSheet(); toast('已更新'); renderAll();
+    } else {
+      db.workouts.push(Object.assign({ id: uid(), date: sel.training }, wo));
+      save(); scheduleSync(); closeSheet(); toast('动作已记录 💪'); renderAll();
+      goto('training');
+    }
   });
 
   /* ---------- weight ---------- */
@@ -384,8 +536,9 @@
     const kg = parseFloat($('#weight-input').value);
     if (!kg || kg <= 0) { toast('填一下体重'); return; }
     const existing = db.weights.find(w => w.date === todayKey);
-    if (existing) existing.kg = kg; else db.weights.push({ date: todayKey, kg });
-    save(); closeSheet(); toast('体重已记录'); renderStats();
+    if (existing) { existing.kg = kg; existing.ts = Date.now(); }
+    else db.weights.push({ date: todayKey, kg, ts: Date.now() });
+    save(); scheduleSync(); closeSheet(); toast('体重已记录'); renderStats();
   });
 
   /* ---------- settings ---------- */
@@ -393,20 +546,207 @@
     $('#set-name').value = db.settings.name || '';
     $('#set-target').value = db.settings.target || '';
     $('#set-bmr').value = db.settings.bmr || '';
+    $('#set-dskey').value = db.settings.dsKey || '';
+    $('#set-synctoken').value = db.settings.syncToken || '';
+    $('#set-gistid').value = db.settings.gistId || '';
+    updateSyncStatus();
   }
   $('#save-settings').addEventListener('click', () => {
     db.settings.name = $('#set-name').value.trim();
     db.settings.target = parseInt($('#set-target').value, 10) || 1600;
     db.settings.bmr = parseInt($('#set-bmr').value, 10) || 1400;
-    save(); closeSheet(); toast('已保存'); renderAll();
+    db.settings.dsKey = $('#set-dskey').value.trim();
+    db.settings.syncToken = $('#set-synctoken').value.trim();
+    db.settings.gistId = $('#set-gistid').value.trim();
+    db.settings.ts = Date.now();
+    save(); scheduleSync(); closeSheet(); toast('已保存'); renderAll();
   });
+  $('#sync-now').addEventListener('click', () => syncNow(false));
   $('#export-data').addEventListener('click', () => {
-    const blob = new Blob([JSON.stringify(db, null, 2)], { type: 'application/json' });
+    // Strip the sync token so shared/backed-up JSON never leaks credentials.
+    const safe = Object.assign({}, db);
+    safe.settings = Object.assign({}, safe.settings);
+    safe.settings.syncToken = '';
+    const blob = new Blob([JSON.stringify(safe, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = `轻衡备份-${todayKey}.json`;
     a.click(); URL.revokeObjectURL(a.href);
   });
+
+  /* ---------- multi-device sync (private GitHub Gist) ---------- */
+
+  // pure — exposed on window for standalone testing (node --eval)
+  function mergeDb(local, remote) {
+    local = local || {}; remote = remote || {};
+
+    // 1. merge tombstones: keep the larger (later) timestamp per id
+    const tomb = {};
+    Object.keys(local.tombstones || {}).forEach(id => { tomb[id] = local.tombstones[id]; });
+    Object.keys(remote.tombstones || {}).forEach(id => {
+      tomb[id] = Math.max(tomb[id] || 0, remote.tombstones[id]);
+    });
+
+    function mergeList(localArr, remoteArr) {
+      const map = new Map();
+      (remoteArr || []).forEach(r => map.set(r.id, r));
+      (localArr || []).forEach(r => {
+        const ex = map.get(r.id);
+        if (!ex || (Number(r.ts) || 0) >= (Number(ex.ts) || 0)) map.set(r.id, r);
+      });
+      // apply tombstones: record newer than tombstone survives (and tombstone is dropped),
+      // otherwise the record stays deleted.
+      map.forEach((rec, id) => {
+        if (tomb[id] != null) {
+          if ((Number(rec.ts) || 0) > tomb[id]) delete tomb[id];
+          else map.delete(id);
+        }
+      });
+      return Array.from(map.values()).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+    }
+
+    const meals = mergeList(local.meals, remote.meals);
+    const workouts = mergeList(local.workouts, remote.workouts);
+
+    // weights: keyed by date, larger ts wins
+    const wmap = new Map();
+    (remote.weights || []).forEach(w => wmap.set(w.date, w));
+    (local.weights || []).forEach(w => {
+      const ex = wmap.get(w.date);
+      if (!ex || (Number(w.ts) || 0) >= (Number(ex.ts) || 0)) wmap.set(w.date, w);
+    });
+    const weights = Array.from(wmap.values()).sort((a, b) => a.date < b.date ? -1 : 1);
+
+    // settings: whole-object "newer wins" by ts, but syncToken/gistId always stay local
+    const ls = local.settings || {}, rs = remote.settings || {};
+    const settings = ((Number(ls.ts) || 0) >= (Number(rs.ts) || 0)) ? Object.assign({}, rs, ls) : Object.assign({}, ls, rs);
+    settings.syncToken = ls.syncToken || '';
+    settings.gistId = ls.gistId || '';
+
+    // drop tombstones older than 90 days
+    const cutoff = Date.now() - 90 * 86400000;
+    Object.keys(tomb).forEach(id => { if (tomb[id] < cutoff) delete tomb[id]; });
+
+    return { meals, workouts, weights, settings, tombstones: tomb, syncedAt: local.syncedAt || 0 };
+  }
+
+  async function gistRequest(url, opts) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 60000);
+    try {
+      const res = await fetch(url, Object.assign({}, opts, {
+        signal: ctrl.signal,
+        headers: Object.assign({
+          'Authorization': 'Bearer ' + db.settings.syncToken,
+          'Accept': 'application/vnd.github+json'
+        }, (opts && opts.headers) || {})
+      }));
+      if (res.status === 401 || res.status === 403) throw new Error('Token 无效或权限不足');
+      if (res.status === 404) throw new Error('Gist 不存在,检查 Gist ID');
+      if (!res.ok) throw new Error('同步失败 (' + res.status + ')');
+      return res;
+    } catch (err) {
+      if (err.name === 'AbortError') throw new Error('同步超时,稍后再试');
+      if (err instanceof TypeError) throw new Error('网络错误,检查网络连接');
+      throw err;
+    } finally { clearTimeout(timer); }
+  }
+
+  function gistPayload(dbObj) {
+    const copy = Object.assign({}, dbObj);
+    delete copy.syncedAt;
+    // Never upload local-only secrets into the gist. GitHub secret-scanning
+    // auto-revokes any access token found in gist content, which used to kill
+    // the token right after the first (create) sync. Strip them from the copy;
+    // mergeDb already keeps syncToken/gistId local on the receiving device.
+    copy.settings = Object.assign({}, copy.settings);
+    copy.settings.syncToken = '';
+    copy.settings.gistId = '';
+    return { description: 'qingheng-sync', public: false, files: { 'qingheng.json': { content: JSON.stringify(copy) } } };
+  }
+
+  async function gistCreate(dbObj) {
+    const res = await gistRequest('https://api.github.com/gists', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(gistPayload(dbObj))
+    });
+    const json = await res.json();
+    return json.id;
+  }
+
+  async function gistFetch(gistId) {
+    const res = await gistRequest('https://api.github.com/gists/' + gistId);
+    const json = await res.json();
+    const f = json.files && json.files['qingheng.json'];
+    if (!f) throw new Error('云端数据格式异常');
+    if (f.truncated && f.raw_url) {
+      const raw = await gistRequest(f.raw_url);
+      return await raw.text();
+    }
+    return f.content;
+  }
+
+  async function gistPush(gistId, dbObj) {
+    await gistRequest('https://api.github.com/gists/' + gistId, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(gistPayload(dbObj))
+    });
+  }
+
+  function updateSyncStatus(msg) {
+    const el = $('#sync-status');
+    if (!el) return;
+    if (msg) { el.textContent = msg; return; }
+    if (!db.settings.syncToken) { el.textContent = '从未同步'; return; }
+    if (!db.syncedAt) { el.textContent = '从未同步'; return; }
+    const mins = Math.round((Date.now() - db.syncedAt) / 60000);
+    el.textContent = mins < 1 ? '刚刚同步过' : mins < 60 ? `上次同步:${mins} 分钟前` : `上次同步:${Math.round(mins / 60)} 小时前`;
+  }
+
+  let syncing = false;
+  let syncTimer = null;
+  function scheduleSync() {
+    if (!db.settings.syncToken) return;
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(() => syncNow(true), 30000);
+  }
+
+  async function syncNow(silent) {
+    if (!db.settings.syncToken) { if (!silent) toast('先在设置里填同步 Token'); return; }
+    if (!navigator.onLine) { if (!silent) toast('离线,无法同步'); return; }
+    if (syncing) return;
+    syncing = true;
+    updateSyncStatus('同步中…');
+    try {
+      if (!db.settings.gistId) {
+        const id = await gistCreate(db);
+        db.settings.gistId = id;
+        db.syncedAt = Date.now();
+        save();
+        if (openSheet === 'settings') $('#set-gistid').value = id;
+        if (!silent) toast('已同步(新建云端)');
+      } else {
+        const remoteText = await gistFetch(db.settings.gistId);
+        let remoteDb;
+        try { remoteDb = JSON.parse(remoteText); }
+        catch (e) { throw new Error('云端数据损坏'); }
+        const merged = mergeDb(db, remoteDb);
+        await gistPush(db.settings.gistId, merged);
+        db = merged;
+        db.syncedAt = Date.now();
+        save();
+        renderAll();
+        if (!silent) toast('已同步');
+      }
+    } catch (err) {
+      if (!silent) toast(err.message || '同步失败');
+    } finally {
+      syncing = false;
+      updateSyncStatus();
+    }
+  }
 
   /* ---------- delete (event delegation) ---------- */
   document.addEventListener('click', e => {
@@ -414,7 +754,8 @@
     const kind = del.dataset.del, id = del.dataset.id;
     if (kind === 'meal') db.meals = db.meals.filter(m => m.id !== id);
     if (kind === 'workout') db.workouts = db.workouts.filter(w => w.id !== id);
-    save(); toast('已删除'); renderAll();
+    db.tombstones[id] = Date.now();
+    save(); scheduleSync(); toast('已删除'); renderAll();
   });
 
   /* ---------- global click wiring ---------- */
@@ -422,6 +763,8 @@
     const g = e.target.closest('[data-goto]'); if (g) { goto(g.dataset.goto); return; }
     const o = e.target.closest('[data-open]'); if (o) { open(o.dataset.open); return; }
     if (e.target.id === 'backdrop') { closeSheet(); return; }
+    const ed = e.target.closest('[data-edit]');
+    if (ed && !e.target.closest('[data-del]')) { startEdit(ed.dataset.edit, ed.dataset.id); return; }
     const dn = e.target.closest('[data-date]');
     if (dn) {
       const scr = dn.dataset.date, dir = +dn.dataset.dir;
@@ -446,4 +789,5 @@
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
   }
+  syncNow(true);
 })();

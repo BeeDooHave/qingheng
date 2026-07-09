@@ -32,8 +32,8 @@ input{font-family:inherit}
 #app{max-width:520px;margin:0 auto;min-height:100vh}
 .screen{
   padding:calc(var(--safe-t) + 8px) 20px 0;
-  animation:fade .28s ease;
 }
+.screen>*:not(.fab){animation:fade .28s ease}
 @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 .bottom-space{height:120px}
 
@@ -87,6 +87,19 @@ input{font-family:inherit}
 .r-val small{font-size:11px;color:var(--muted-2);font-weight:600;margin-left:2px}
 .r-del{color:var(--muted-2);font-size:18px;padding:4px;flex:none}
 .row.pressable:active{transform:scale(.985)}
+.row[data-edit]{cursor:pointer;transition:transform .12s ease}
+.row[data-edit]:active{transform:scale(.985)}
+
+/* ---------- AI nutrition ---------- */
+.ai-btn{display:block;width:100%;text-align:center;font-size:14px;font-weight:600;color:var(--teal-ink);background:var(--teal-wash);border-radius:14px;padding:11px;margin:2px 0 12px}
+.ai-btn:disabled{opacity:.55;cursor:default}
+.ai-card{background:var(--teal-wash);border-radius:14px;padding:12px 14px;margin:0 0 12px;display:flex;flex-direction:column;gap:6px}
+.ai-row{display:flex;justify-content:space-between;align-items:baseline;font-size:14px;gap:10px}
+.ai-name small{color:var(--muted);font-size:12px;margin-left:6px;font-weight:400}
+.ai-kcal{font-weight:600;font-variant-numeric:tabular-nums;flex:none}
+.ai-total{font-size:13px;font-weight:700;color:var(--teal-ink);border-top:1px solid rgba(15,174,156,.18);padding-top:8px;margin-top:2px}
+.ai-micros{font-size:12px;color:var(--muted);line-height:1.5}
+.ai-note{font-size:11px;color:var(--muted-2)}
 
 .empty{text-align:center;color:var(--muted-2);font-size:13.5px;padding:26px 10px;background:var(--card);border-radius:16px;box-shadow:var(--shadow)}
 

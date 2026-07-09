@@ -167,7 +167,9 @@
       { k: 'carbs', n: '碳水', en: 'Carbs', u: 'g', t: carbsG, src: '米面·薯类·水果·豆类' }
     ];
   }
-  // 汇总今天所有餐:宏量(含手动餐蛋白)+ 微量(仅 AI 估算过的餐)
+  // 旧格式 micros 用中文字符串 key(如 "维生素C":"60 mg"),映射到新数字 key 做兼容
+  const OLD_MICRO_ALIAS = { ca: '钙', fe: '铁', zn: '锌', k: '钾', vitC: '维生素C', vitA: '维生素A' };
+  // 汇总今天所有餐:宏量(含手动餐蛋白)+ 微量(AI 估算过的餐;旧格式做兼容解析)
   function todayNutrition() {
     const acc = { protein: 0, fat: 0, carbs: 0 };
     MICROS.forEach(m => acc[m.k] = 0);
@@ -176,7 +178,13 @@
       acc.protein += (t && t.protein != null) ? Number(t.protein) || 0 : Number(meal.protein) || 0;
       if (t) { acc.fat += Number(t.fat) || 0; acc.carbs += Number(t.carbs) || 0; }
       const mi = (nu && nu.micros) || {};
-      MICROS.forEach(m => { acc[m.k] += Number(mi[m.k]) || 0; });
+      MICROS.forEach(m => {
+        let v = mi[m.k];
+        if ((v == null || v === '') && OLD_MICRO_ALIAS[m.k] != null && mi[OLD_MICRO_ALIAS[m.k]] != null) {
+          v = parseFloat(String(mi[OLD_MICRO_ALIAS[m.k]]));  // parse "60 mg" -> 60
+        }
+        acc[m.k] += Number(v) || 0;
+      });
     });
     return acc;
   }
@@ -456,7 +464,13 @@
 "total":{"kcal":0,"protein":0,"fat":0,"carbs":0,"fiber":0},
 "micros":{"vitC":0,"vitE":0,"vitA":0,"se":0,"zn":0,"cu":0,"mn":0,"ca":0,"fe":0,"k":0,"anthocyanin":0,"lycopene":0,"lutein":0,"betacarotene":0},
 "note":"一句话分量假设说明(可选)"}
-单位:kcal 千卡;protein/fat/carbs/fiber 克。micros 为整餐合计的纯数字:vitA、se 用微克(µg),其余(vitC、vitE、zn、cu、mn、ca、fe、k、anthocyanin、lycopene、lutein、betacarotene)用毫克(mg)。花青素 anthocyanin、番茄红素 lycopene、叶黄素 lutein、β-胡萝卜素 betacarotene 尽力估算,该食物没有或估不出就填 0。所有数值保留整数或一位小数。如果输入不是食物,返回 {"error":"无法识别为食物"}。`;
+单位:kcal 千卡;protein/fat/carbs/fiber 克。micros 为整餐合计的纯数字:vitA、se 用微克(µg),其余(vitC、vitE、zn、cu、mn、ca、fe、k、anthocyanin、lycopene、lutein、betacarotene)用毫克(mg)。
+植物化合物要按食物如实给出非零估计,别一律填 0。常见富含来源(同义词按同一食物处理):
+- anthocyanin 花青素:蓝莓、桑葚、黑莓、紫甘蓝(=紫包菜=红甘蓝)、紫薯、黑枸杞、红/紫葡萄、血橙、紫米、茄子皮。生紫甘蓝每 100g 约 50–250mg。
+- lycopene 番茄红素:番茄(熟/番茄酱更高)、西瓜、粉红葡萄柚、番石榴。
+- lutein 叶黄素(含玉米黄质):羽衣甘蓝、菠菜、蛋黄、玉米、西兰花、枸杞。
+- betacarotene β-胡萝卜素:胡萝卜、南瓜、红薯、深绿叶菜、芒果。
+该食物确实不含或无法估算才填 0。所有数值保留整数或一位小数。如果输入不是食物,返回 {"error":"无法识别为食物"}。`;
 
   function resetAi() {
     aiNutrients = null;

@@ -46,7 +46,7 @@
   }
 
   /* ---------- selected dates per screen ---------- */
-  const sel = { diet: todayKey, training: todayKey };
+  const sel = { today: todayKey, diet: todayKey, training: todayKey };
 
   /* ---------- calculations ---------- */
   const mealsOn = k => db.meals.filter(m => m.date === k);
@@ -78,6 +78,7 @@
 
   /* ---------- navigation ---------- */
   function goto(name) {
+    if (name === 'today') sel.today = todayKey; // tapping the 今天 tab always returns to today
     $$('.screen').forEach(s => s.hidden = s.dataset.screen !== name);
     $$('.tab').forEach(t => t.classList.toggle('active', t.dataset.goto === name));
     window.scrollTo(0, 0);
@@ -95,13 +96,19 @@
 
   /* ---------- TODAY ---------- */
   function renderToday() {
-    const d = new Date();
-    $('#today-date').textContent = `${d.getMonth() + 1}月${d.getDate()}日 · 周${WD[d.getDay()]}`;
-    const hr = d.getHours();
-    const hello = hr < 5 ? '夜深了' : hr < 11 ? '早上好' : hr < 14 ? '中午好' : hr < 18 ? '下午好' : '晚上好';
-    $('#greeting').textContent = db.settings.name ? `${hello},${db.settings.name}` : hello;
+    const k = sel.today;
+    const isToday = k === todayKey;
+    const dd = fromKey(k);
+    $('#today-date').textContent = `${dd.getMonth() + 1}月${dd.getDate()}日 · 周${WD[dd.getDay()]}`;
+    if (isToday) {
+      const hr = new Date().getHours();
+      const hello = hr < 5 ? '夜深了' : hr < 11 ? '早上好' : hr < 14 ? '中午好' : hr < 18 ? '下午好' : '晚上好';
+      $('#greeting').textContent = db.settings.name ? `${hello},${db.settings.name}` : hello;
+    } else {
+      $('#greeting').textContent = labelForKey(k);
+    }
 
-    const inK = intakeOn(todayKey), outK = outputOn(todayKey), net = outK - inK;
+    const inK = intakeOn(k), outK = outputOn(k), net = outK - inK;
     $('#sum-in').textContent = inK;
     $('#sum-out').textContent = outK;
     $('#net-deficit').textContent = net;
@@ -120,15 +127,15 @@
     rout.style.strokeDasharray = `${deficitLen} ${C}`;
     rout.style.strokeDashoffset = `${-eatenLen}`;
 
-    // today meals / workouts (read-only compact)
-    const meals = mealsOn(todayKey);
+    // meals / workouts for the selected day (read-only compact)
+    const meals = mealsOn(k);
     $('#today-meals').innerHTML = meals.length
       ? meals.map(m => rowMeal(m, false)).join('')
-      : `<div class="empty">还没记今天的餐 🥗</div>`;
-    const wos = workoutsOn(todayKey);
+      : `<div class="empty">${isToday ? '还没记今天的餐 🥗' : '这天没有饮食记录'}</div>`;
+    const wos = workoutsOn(k);
     $('#today-workouts').innerHTML = wos.length
       ? wos.map(w => rowWorkout(w, false)).join('')
-      : `<div class="empty">还没记今天的训练 💪</div>`;
+      : `<div class="empty">${isToday ? '还没记今天的训练 💪' : '这天没有训练记录'}</div>`;
     renderNutritionProgress();
   }
 
@@ -220,7 +227,7 @@
   let mgOpen = true, mgOpenD = true;
   function renderNutritionProgress() {
     const box = $('#micro-guide'); if (!box) return;
-    box.hidden = !mgOpen; box.innerHTML = progressHtml(todayKey);
+    box.hidden = !mgOpen; box.innerHTML = progressHtml(sel.today);
   }
   function renderDietProgress() {
     const box = $('#diet-micro'); if (!box) return;

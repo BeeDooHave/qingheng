@@ -218,3 +218,13 @@ input{font-family:inherit}
 .mg-rec{font-size:13px;color:var(--ink);margin-top:2px;line-height:1.45;font-variant-numeric:tabular-nums}
 .mg-src{font-size:11.5px;color:var(--muted);margin-top:3px}
 .mg-foot{font-size:11px;color:var(--muted-2);line-height:1.5;padding:2px 4px 0}
+.mg-row1{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.mg-amt{font-size:12.5px;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.mg-amt b{color:var(--muted-2);font-weight:700;margin-left:5px}
+.mg-amt.done{color:var(--teal-ink)}
+.mg-amt.done b{color:var(--teal)}
+.mg-tag{font-size:10px;font-weight:600;color:var(--muted-2);border:1px solid var(--line);border-radius:6px;padding:1px 4px;margin-left:5px;white-space:nowrap}
+.mg-bar{height:6px;background:var(--line);border-radius:99px;overflow:hidden;margin:6px 0 5px}
+.mg-fill{height:100%;width:0;background:var(--teal);border-radius:99px;transition:width .5s cubic-bezier(.2,.8,.2,1)}
+.mg-fill.over{background:var(--coral)}
+.mg-item.star .mg-fill{background:var(--teal)}

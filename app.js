@@ -129,48 +129,88 @@
     $('#today-workouts').innerHTML = wos.length
       ? wos.map(w => rowWorkout(w, false)).join('')
       : `<div class="empty">还没记今天的训练 💪</div>`;
+    renderNutritionProgress();
   }
 
-  /* ---------- antioxidant & micronutrient daily-intake guide ---------- */
-  // 数值为普通成人参考:维生素/矿物质用 NIH 膳食参考摄入量(DRI: RDA 或 AI);
-  // 植物化合物无官方 RDA,给出研究/膳食建议区间。孕哺及特殊人群不同,仅供参考。
-  const MICRO_GUIDE = [
-    { title: '🫐 抗氧化植物化合物', note: '无官方 RDA · 下列为研究/膳食参考量,重在多样与足量', items: [
-      { n: '花青素', en: 'Anthocyanins', rec: '参考 ~29 mg/日;有益区间 100–500 mg;美国人均仅 ~12.5 mg', src: '蓝莓 · 黑莓 · 黑枸杞 · 紫甘蓝 · 紫薯 · 红葡萄', star: true },
-      { n: '番茄红素', en: 'Lycopene', rec: '无 RDA;研究常用剂量约 10 mg/日', src: '熟番茄 · 番茄酱 · 西瓜 · 粉红葡萄柚' },
-      { n: '叶黄素', en: 'Lutein', rec: '建议 6–10 mg/日(护眼);人均仅 1–4 mg', src: '羽衣甘蓝 · 菠菜 · 蛋黄 · 玉米' },
-      { n: '玉米黄质', en: 'Zeaxanthin', rec: '建议 ~2 mg/日(常与叶黄素同补)', src: '枸杞 · 彩椒 · 玉米 · 蛋黄' },
-      { n: 'β-胡萝卜素', en: 'β-Carotene', rec: '无独立 RDA(体内转化为维生素 A)', src: '胡萝卜 · 南瓜 · 红薯 · 深绿叶菜' },
-      { n: '其他多酚', en: '茶多酚/槲皮素/白藜芦醇', rec: '无 RDA;靠饮食多样化累积', src: '绿茶 · 洋葱 · 苹果 · 莓果 · 葡萄 · 黑巧克力' }
-    ] },
-    { title: '🍊 抗氧化维生素', note: '官方 RDA(普通成人)', items: [
-      { n: '维生素 C', en: 'Vitamin C', rec: '90 mg 男 / 75 mg 女;吸烟者 +35;上限 2000 mg', src: '彩椒 · 猕猴桃 · 柑橘 · 西兰花 · 草莓' },
-      { n: '维生素 E', en: 'Vitamin E', rec: '15 mg(α-生育酚);上限 1000 mg', src: '杏仁 · 葵花籽 · 植物油 · 菠菜' },
-      { n: '维生素 A', en: 'Vitamin A', rec: '900 µg RAE 男 / 700 µg 女;上限 3000 µg', src: '动物肝 · 蛋黄 · 及 β-胡萝卜素蔬果' }
-    ] },
-    { title: '⚙️ 抗氧化矿物质', note: '抗氧化酶的辅因子 · 官方 RDA/AI(成人)', items: [
-      { n: '硒', en: 'Selenium', rec: '55 µg;上限 400 µg', src: '巴西坚果(极高,1–2 颗即够)· 海鲜 · 蛋' },
-      { n: '锌', en: 'Zinc', rec: '11 mg 男 / 8 mg 女;上限 40 mg', src: '牡蛎 · 红肉 · 南瓜籽 · 豆类' },
-      { n: '铜', en: 'Copper', rec: '900 µg;上限 10 mg', src: '动物肝 · 贝类 · 坚果 · 可可' },
-      { n: '锰', en: 'Manganese', rec: '2.3 mg 男 / 1.8 mg 女(AI)', src: '全谷 · 坚果 · 茶 · 绿叶菜' }
-    ] }
+  /* ---------- daily nutrition targets + today's progress ---------- */
+  // 目标:三大营养素据热量目标/体重推算;微量元素统一用男性 RDA;
+  // 植物化合物用软参考目标(标注 AI 粗估)。AI 估算的 micros 用固定数字 key(见 AI_PROMPT)。
+  const MICROS = [
+    { k: 'vitC', n: '维生素 C', en: 'Vitamin C', u: 'mg', t: 90, src: '彩椒·猕猴桃·柑橘·西兰花', grp: 'vit' },
+    { k: 'vitE', n: '维生素 E', en: 'Vitamin E', u: 'mg', t: 15, src: '杏仁·葵花籽·植物油·菠菜', grp: 'vit' },
+    { k: 'vitA', n: '维生素 A', en: 'Vitamin A', u: 'µg', t: 900, src: '动物肝·蛋黄·深色蔬果', grp: 'vit' },
+    { k: 'se', n: '硒', en: 'Selenium', u: 'µg', t: 55, src: '巴西坚果·海鲜·蛋', grp: 'min' },
+    { k: 'zn', n: '锌', en: 'Zinc', u: 'mg', t: 11, src: '牡蛎·红肉·南瓜籽·豆类', grp: 'min' },
+    { k: 'cu', n: '铜', en: 'Copper', u: 'mg', t: 0.9, src: '动物肝·贝类·坚果·可可', grp: 'min' },
+    { k: 'mn', n: '锰', en: 'Manganese', u: 'mg', t: 2.3, src: '全谷·坚果·茶·绿叶菜', grp: 'min' },
+    { k: 'ca', n: '钙', en: 'Calcium', u: 'mg', t: 1000, src: '奶·豆腐·绿叶菜·芝麻', grp: 'min' },
+    { k: 'fe', n: '铁', en: 'Iron', u: 'mg', t: 8, src: '红肉·动物肝·豆类·绿叶菜', grp: 'min' },
+    { k: 'k', n: '钾', en: 'Potassium', u: 'mg', t: 3400, src: '香蕉·土豆·豆类·菠菜', grp: 'min' },
+    { k: 'anthocyanin', n: '花青素', en: 'Anthocyanins', u: 'mg', t: 100, src: '蓝莓·黑莓·黑枸杞·紫甘蓝·紫薯', grp: 'phyto', soft: true, star: true },
+    { k: 'lycopene', n: '番茄红素', en: 'Lycopene', u: 'mg', t: 10, src: '熟番茄·番茄酱·西瓜·粉红葡萄柚', grp: 'phyto', soft: true },
+    { k: 'lutein', n: '叶黄素', en: 'Lutein/Zeaxanthin', u: 'mg', t: 10, src: '羽衣甘蓝·菠菜·蛋黄·玉米·枸杞', grp: 'phyto', soft: true },
+    { k: 'betacarotene', n: 'β-胡萝卜素', en: 'β-Carotene', u: 'mg', t: 6, src: '胡萝卜·南瓜·红薯·深绿叶菜', grp: 'phyto', soft: true }
   ];
+  function latestWeight() {
+    const ws = (db.weights || []).slice().sort((a, b) => a.date < b.date ? 1 : -1);
+    return ws.length ? Number(ws[0].kg) || 0 : 0;
+  }
+  function macroTargets() {
+    const kcal = Number(db.settings.target) || 1600;
+    const w = latestWeight();
+    const proteinG = w > 0 ? Math.round(1.6 * w) : Math.round(kcal * 0.30 / 4);
+    const fatG = Math.round(kcal * 0.25 / 9);
+    const carbsG = Math.round(Math.max(kcal - proteinG * 4 - fatG * 9, 0) / 4);
+    return [
+      { k: 'protein', n: '蛋白质', en: 'Protein', u: 'g', t: proteinG, src: '肉·蛋·奶·豆·鱼虾' },
+      { k: 'fat', n: '脂肪', en: 'Fat', u: 'g', t: fatG, src: '油·坚果·蛋黄·肥肉' },
+      { k: 'carbs', n: '碳水', en: 'Carbs', u: 'g', t: carbsG, src: '米面·薯类·水果·豆类' }
+    ];
+  }
+  // 汇总今天所有餐:宏量(含手动餐蛋白)+ 微量(仅 AI 估算过的餐)
+  function todayNutrition() {
+    const acc = { protein: 0, fat: 0, carbs: 0 };
+    MICROS.forEach(m => acc[m.k] = 0);
+    mealsOn(todayKey).forEach(meal => {
+      const nu = meal.nutrients, t = (nu && nu.total) || null;
+      acc.protein += (t && t.protein != null) ? Number(t.protein) || 0 : Number(meal.protein) || 0;
+      if (t) { acc.fat += Number(t.fat) || 0; acc.carbs += Number(t.carbs) || 0; }
+      const mi = (nu && nu.micros) || {};
+      MICROS.forEach(m => { acc[m.k] += Number(mi[m.k]) || 0; });
+    });
+    return acc;
+  }
+
+  const fmtN = v => { const n = Number(v) || 0; return n >= 100 ? Math.round(n) : n % 1 ? Math.round(n * 10) / 10 : n; };
+  function progRow(item, got) {
+    const tgt = Number(item.t) || 0;
+    const pct = tgt > 0 ? Math.round(got / tgt * 100) : 0;
+    const over = pct >= 100;
+    return `<div class="mg-item${item.star ? ' star' : ''}">
+      <div class="mg-row1"><span class="mg-n">${esc(item.n)} <span class="mg-en">${esc(item.en)}</span>${item.soft ? '<span class="mg-tag">AI粗估</span>' : ''}</span>
+        <span class="mg-amt${over ? ' done' : ''}">${fmtN(got)} / ${fmtN(tgt)} ${esc(item.u)}<b>${pct}%</b></span></div>
+      <div class="mg-bar"><div class="mg-fill${over ? ' over' : ''}" style="width:${Math.min(pct, 100)}%"></div></div>
+      <p class="mg-src">来源:${esc(item.src)}${item.soft ? ' · 软参考目标' : ''}</p>
+    </div>`;
+  }
   let mgOpen = true;
-  function renderMicroGuide() {
+  function renderNutritionProgress() {
     const box = $('#micro-guide'); if (!box) return;
     box.hidden = !mgOpen;
-    box.innerHTML = MICRO_GUIDE.map(g => `
+    const got = todayNutrition();
+    const groups = [
+      { title: '🔥 三大营养素', note: '目标据热量目标 / 最近体重推算', items: macroTargets() },
+      { title: '🫐 抗氧化植物化合物', note: '软参考目标 · AI 粗估,仅看趋势', items: MICROS.filter(m => m.grp === 'phyto') },
+      { title: '🍊 抗氧化维生素', note: '男性 RDA', items: MICROS.filter(m => m.grp === 'vit') },
+      { title: '⚙️ 矿物质', note: '男性 RDA / AI', items: MICROS.filter(m => m.grp === 'min') }
+    ];
+    box.innerHTML = groups.map(g => `
       <div class="mg-group">
         <p class="mg-gtitle">${esc(g.title)}</p>
         <p class="mg-gnote">${esc(g.note)}</p>
-        ${g.items.map(it => `
-          <div class="mg-item${it.star ? ' star' : ''}">
-            <p class="mg-n">${esc(it.n)} <span class="mg-en">${esc(it.en)}</span></p>
-            <p class="mg-rec">${esc(it.rec)}</p>
-            <p class="mg-src">来源:${esc(it.src)}</p>
-          </div>`).join('')}
+        ${g.items.map(it => progRow(it, got[it.k] || 0)).join('')}
       </div>`).join('') +
-      `<p class="mg-foot">数值为普通成人参考(来源:美国 NIH 膳食参考摄入量 DRI 及相关研究)。植物化合物无官方 RDA,数字为研究/膳食建议区间。孕期哺乳、疾病或特殊人群需求不同。仅供参考,非医疗建议。</p>`;
+      `<p class="mg-foot">进度只统计用 ✨AI 估算过的餐(手动记的餐仅计蛋白/热量)。想把旧餐算进来:编辑它 → 再点一次「AI 估算」即可。目标参考 NIH DRI(统一男性值)与相关研究;植物化合物为软目标。仅供参考,非医疗建议。</p>`;
   }
 
   /* ---------- row templates ---------- */
@@ -414,9 +454,9 @@
   const AI_PROMPT = `你是营养估算助手。用户给出一餐吃的食物描述(中文,可能含模糊分量如"一碗""一份"),你按中国常见份量估算,输出 json,不要输出任何其他文字。格式:
 {"items":[{"name":"食物名","amount":"估算的量,如 150g / 1碗(约200g)","kcal":0,"protein":0,"fat":0,"carbs":0,"fiber":0}],
 "total":{"kcal":0,"protein":0,"fat":0,"carbs":0,"fiber":0},
-"micros":{"钙":"xx mg","铁":"xx mg","锌":"xx mg","钾":"xx mg","维生素C":"xx mg","维生素A":"xx μg"},
+"micros":{"vitC":0,"vitE":0,"vitA":0,"se":0,"zn":0,"cu":0,"mn":0,"ca":0,"fe":0,"k":0,"anthocyanin":0,"lycopene":0,"lutein":0,"betacarotene":0},
 "note":"一句话分量假设说明(可选)"}
-数值单位:kcal 为千卡,protein/fat/carbs/fiber 为克,保留整数或一位小数。如果输入不是食物,返回 {"error":"无法识别为食物"}。`;
+单位:kcal 千卡;protein/fat/carbs/fiber 克。micros 为整餐合计的纯数字:vitA、se 用微克(µg),其余(vitC、vitE、zn、cu、mn、ca、fe、k、anthocyanin、lycopene、lutein、betacarotene)用毫克(mg)。花青素 anthocyanin、番茄红素 lycopene、叶黄素 lutein、β-胡萝卜素 betacarotene 尽力估算,该食物没有或估不出就填 0。所有数值保留整数或一位小数。如果输入不是食物,返回 {"error":"无法识别为食物"}。`;
 
   function resetAi() {
     aiNutrients = null;
@@ -462,7 +502,7 @@
       `<div class="ai-row"><span class="ai-name">${esc(it.name)}<small>${esc(it.amount || '')}</small></span><span class="ai-kcal">${Math.round(Number(it.kcal) || 0)} kcal</span></div>`).join('');
     const t = d.total || {};
     const micros = d.micros && typeof d.micros === 'object'
-      ? Object.entries(d.micros).map(([k, v]) => esc(k) + ' ' + esc(v)).join(' · ') : '';
+      ? MICROS.filter(m => (Number(d.micros[m.k]) || 0) > 0).map(m => esc(m.n) + ' ' + fmtN(d.micros[m.k]) + esc(m.u)).join(' · ') : '';
     return `<div class="ai-card">${items}
       <div class="ai-total">合计 ${Math.round(Number(t.kcal) || 0)} kcal · 蛋白 ${num(t.protein)}g · 脂肪 ${num(t.fat)}g · 碳水 ${num(t.carbs)}g · 纤维 ${num(t.fiber)}g</div>
       ${micros ? `<p class="ai-micros">${micros}</p>` : ''}
@@ -856,7 +896,6 @@
 
   /* ---------- init ---------- */
   renderToday();
-  renderMicroGuide();
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
   }

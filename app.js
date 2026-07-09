@@ -219,21 +219,41 @@
       <div class="mg-detail" hidden></div>
     </div>`;
   }
-  // 某营养素当天由哪几餐贡献(micros 按整餐存,故按餐拆分)
+  function mealMicro(m, key) {
+    const mi = m.nutrients && m.nutrients.micros; if (!mi) return 0;
+    let v = mi[key];
+    if ((v == null || v === '') && OLD_MICRO_ALIAS[key] != null && mi[OLD_MICRO_ALIAS[key]] != null) v = parseFloat(String(mi[OLD_MICRO_ALIAS[key]]));
+    return Number(v) || 0;
+  }
+  function macroFromMeal(m, key) {
+    const t = m.nutrients && m.nutrients.total;
+    if (t && t[key] != null) return Number(t[key]) || 0;
+    return key === 'protein' ? Number(m.protein) || 0 : 0;
+  }
+  // 某营养素当天的来源明细:优先按「每样食物」拆(item 级 micros),
+  // 无 item 级数据时回退到按「整餐」拆。
   function nutrientBreakdown(dk, key) {
     const isMacro = key === 'protein' || key === 'fat' || key === 'carbs';
-    return mealsOn(dk).map(m => {
-      const nu = m.nutrients, mi = nu && nu.micros;
-      let v = 0;
-      if (isMacro) {
-        v = (nu && nu.total && nu.total[key] != null) ? Number(nu.total[key]) || 0 : (key === 'protein' ? Number(m.protein) || 0 : 0);
-      } else if (mi) {
-        v = mi[key];
-        if ((v == null || v === '') && OLD_MICRO_ALIAS[key] != null && mi[OLD_MICRO_ALIAS[key]] != null) v = parseFloat(String(mi[OLD_MICRO_ALIAS[key]]));
-        v = Number(v) || 0;
+    const out = [];
+    mealsOn(dk).forEach(m => {
+      const nu = m.nutrients;
+      const items = nu && Array.isArray(nu.items) ? nu.items : null;
+      let usedItems = false;
+      if (items && items.length) {
+        items.forEach(it => {
+          let v = 0;
+          if (isMacro) v = Number(it[key]) || 0;
+          else if (it.micros && it.micros[key] != null) { v = Number(it.micros[key]) || 0; usedItems = true; }
+          if (v > 0) out.push({ name: it.name || '?', v });
+        });
+        if (isMacro) usedItems = true;
       }
-      return { name: m.name || m.type, v };
-    }).filter(x => x.v > 0).sort((a, b) => b.v - a.v);
+      if (!usedItems) {
+        const v = isMacro ? macroFromMeal(m, key) : mealMicro(m, key);
+        if (v > 0) out.push({ name: m.name || m.type, v });
+      }
+    });
+    return out.sort((a, b) => b.v - a.v);
   }
   function progressHtml(dk) {
     const got = nutritionOn(dk);
@@ -545,10 +565,11 @@
   let aiNutrients = null;
   const AI_BTN_LABEL = '✨ AI 估算营养';
   const AI_PROMPT = `你是营养估算助手。用户给出一餐吃的食物描述(中文,可能含模糊分量如"一碗""一份"),按中国常见份量与标准食物成分数据(USDA / 中国食物成分表)估算,输出 json,不要输出任何其他文字。格式:
-{"items":[{"name":"食物名","amount":"估算的量,如 150g / 1碗(约200g)","kcal":0,"protein":0,"fat":0,"carbs":0,"fiber":0}],
+{"items":[{"name":"食物名","amount":"估算的量,如 150g / 1碗(约200g)","kcal":0,"protein":0,"fat":0,"carbs":0,"fiber":0,"micros":{"vitC":0,"vitE":0,"vitA":0,"se":0,"zn":0,"cu":0,"mn":0,"ca":0,"fe":0,"k":0,"anthocyanin":0,"lycopene":0,"lutein":0,"betacarotene":0}}],
 "total":{"kcal":0,"protein":0,"fat":0,"carbs":0,"fiber":0},
 "micros":{"vitC":0,"vitE":0,"vitA":0,"se":0,"zn":0,"cu":0,"mn":0,"ca":0,"fe":0,"k":0,"anthocyanin":0,"lycopene":0,"lutein":0,"betacarotene":0},
 "note":"一句话分量假设说明(可选)"}
+每个 item 必须带自己的 micros(字段与单位同下方顶层 micros);顶层 total 与顶层 micros 为所有 item 对应字段之和。
 单位:kcal 千卡;protein/fat/carbs/fiber 克。micros 为整餐合计纯数字:vitA、se 用微克(µg),其余用毫克(mg)。
 估算方法:对每种食物,用「每 100g 含量 × 实际克数 ÷ 100」逐项计算再求和;力求准确,既不遗漏也不夸大。同义词按同一食物处理(紫甘蓝=紫包菜=红甘蓝)。
 常见植物化合物参考含量(mg/100g):
@@ -578,7 +599,7 @@
           model: 'deepseek-v4-flash',
           thinking: { type: 'disabled' },
           response_format: { type: 'json_object' },
-          max_tokens: 2000,
+          max_tokens: 3500,
           temperature: 0.3,
           messages: [
             { role: 'system', content: AI_PROMPT },

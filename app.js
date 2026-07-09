@@ -26,6 +26,16 @@
   }
   const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
+  /* ---------- debug log (persisted, for cross-device troubleshooting) ---------- */
+  const LOGKEY = 'qingheng.log';
+  let logs = [];
+  try { logs = JSON.parse(localStorage.getItem(LOGKEY) || '[]'); } catch (e) { logs = []; }
+  function dlog(tag, msg) {
+    logs.push({ t: Date.now(), tag: String(tag), msg: String(msg) });
+    if (logs.length > 60) logs = logs.slice(-60);
+    try { localStorage.setItem(LOGKEY, JSON.stringify(logs)); } catch (e) {}
+  }
+
   /* ---------- date helpers ---------- */
   function key(d) {
     const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), day = String(d.getDate()).padStart(2, '0');
@@ -389,6 +399,7 @@
     if (name === 'workout') resetWorkoutSheet();
     if (name === 'meal') resetMealSheet();
     if (name === 'weight') $('#weight-input').value = '';
+    if (name === 'debug') { const o = $('#dbg-out'); if (o) o.value = diagText(); }
     const s = $('#sheet-' + name);
     s.hidden = false; $('#backdrop').hidden = false; openSheet = name;
     const first = s.querySelector('input'); if (first && name !== 'settings') setTimeout(() => first.focus(), 250);
@@ -396,6 +407,49 @@
   function closeSheet() {
     if (openSheet) $('#sheet-' + openSheet).hidden = true;
     $('#backdrop').hidden = true; openSheet = null;
+  }
+
+  /* ---------- diagnostics (debug sheet) ---------- */
+  function fmtT(ms) { try { return new Date(ms).toLocaleString(); } catch (e) { return '-'; } }
+  function daySummary(dk) {
+    const rows = mealsOn(dk).map(m => {
+      const mi = (m.nutrients && m.nutrients.micros) || null;
+      return `  · ${(m.name || '').slice(0, 16)} ts=${m.ts || 0} micros=[${mi ? Object.keys(mi).join(',') : '无'}]`;
+    });
+    return rows.length ? rows.join('\n') : '  (无记录)';
+  }
+  function diagText() {
+    const s = db.settings || {};
+    const got = nutritionOn(sel.today);
+    const ver = ($('#app-version') || {}).textContent || '?';
+    const swCtrl = ('serviceWorker' in navigator) ? (navigator.serviceWorker.controller ? '受控' : '无控制器') : '不支持';
+    return [
+      '== 轻衡诊断 ==',
+      '版本: ' + ver + ' · ' + fmtT(Date.now()),
+      '在线: ' + navigator.onLine + ' · SW: ' + swCtrl,
+      '同步Token: ' + (s.syncToken ? '已填(' + s.syncToken.length + '位)' : '未填') + ' · GistID: ' + (s.gistId || '(空)'),
+      '上次同步: ' + (db.syncedAt ? fmtT(db.syncedAt) : '从未'),
+      '数据量: meals=' + (db.meals || []).length + ' workouts=' + (db.workouts || []).length + ' weights=' + (db.weights || []).length,
+      '选中日(' + sel.today + ')加总: 蛋白=' + Math.round(got.protein) + ' 维C=' + Math.round(got.vitC) + ' 维A=' + Math.round(got.vitA) + ' β胡萝卜素=' + (Math.round(got.betacarotene * 10) / 10) + ' 花青素=' + Math.round(got.anthocyanin),
+      '今天(' + todayKey + ')的餐:',
+      daySummary(todayKey),
+      '昨天(' + shiftKey(todayKey, -1) + ')的餐:',
+      daySummary(shiftKey(todayKey, -1)),
+      'UA: ' + (navigator.userAgent || '').slice(0, 90),
+      '--- 最近日志 ---',
+      (logs.slice(-30).map(l => new Date(l.t).toLocaleTimeString() + ' [' + l.tag + '] ' + l.msg).join('\n')) || '(空)'
+    ].join('\n');
+  }
+  { // wire debug sheet buttons (elements are static in index.html)
+    const copyBtn = $('#dbg-copy'), refBtn = $('#dbg-refresh');
+    if (copyBtn) copyBtn.addEventListener('click', () => {
+      const ta = $('#dbg-out'); if (!ta) return;
+      ta.value = diagText(); ta.removeAttribute('readonly'); ta.focus(); ta.select();
+      let ok = false; try { ok = document.execCommand('copy'); } catch (e) {}
+      ta.setAttribute('readonly', '');
+      toast(ok ? '已复制诊断信息' : '复制失败,请长按全选再拷贝');
+    });
+    if (refBtn) refBtn.addEventListener('click', () => { const o = $('#dbg-out'); if (o) o.value = diagText(); });
   }
 
   /* ---------- editing state ---------- */
@@ -835,6 +889,7 @@
     if (syncing) return;
     syncing = true;
     updateSyncStatus('同步中…');
+    dlog('sync', `start silent=${silent} online=${navigator.onLine} gist=${db.settings.gistId ? 'yes' : 'new'} localMeals=${(db.meals || []).length}`);
     try {
       if (!db.settings.gistId) {
         const id = await gistCreate(db);
@@ -842,6 +897,7 @@
         db.syncedAt = Date.now();
         save();
         if (openSheet === 'settings') $('#set-gistid').value = id;
+        dlog('sync', 'created gist ' + id);
         if (!silent) toast('已同步(新建云端)');
       } else {
         const remoteText = await gistFetch(db.settings.gistId);
@@ -854,9 +910,11 @@
         db.syncedAt = Date.now();
         save();
         renderAll();
+        dlog('sync', `ok merged meals=${(merged.meals || []).length} workouts=${(merged.workouts || []).length}`);
         if (!silent) toast('已同步');
       }
     } catch (err) {
+      dlog('sync', 'ERROR ' + (err && err.message || err));
       if (!silent) toast(err.message || '同步失败');
     } finally {
       syncing = false;

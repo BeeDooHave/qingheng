@@ -11,7 +11,7 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
   <link rel="icon" href="favicon-64.png" />
-  <link rel="stylesheet" href="styles.css?v=17" />
+  <link rel="stylesheet" href="styles.css?v=18" />
 </head>
 <body>
 <div id="app">
@@ -270,6 +270,18 @@
     <button class="primary accent-teal" id="save-weight">保存</button>
   </div>
 
+  <!-- Debug / diagnostics sheet -->
+  <div class="sheet" id="sheet-debug" hidden>
+    <div class="sheet-grip"></div>
+    <h3 class="sheet-title">诊断信息</h3>
+    <textarea id="dbg-out" class="dbg-out" readonly rows="14"></textarea>
+    <div class="field-row">
+      <button class="text-btn" id="dbg-refresh">↻ 刷新</button>
+      <button class="primary accent-teal" id="dbg-copy">复制诊断信息</button>
+    </div>
+    <p class="hint">复制后可发给开发者排查(含设备与同步状态,不含 token 明文/API key)。</p>
+  </div>
+
   <!-- Settings sheet -->
   <div class="sheet" id="sheet-settings" hidden>
     <div class="sheet-grip"></div>
@@ -297,11 +309,12 @@
 
     <button class="text-btn danger" id="export-data">导出数据备份</button>
     <button class="text-btn" id="force-refresh">🔄 强制刷新(拿最新版)</button>
-    <p class="hint" id="app-version" style="text-align:center;opacity:.55">轻衡 v17</p>
+    <button class="text-btn" data-open="debug">🐞 诊断信息</button>
+    <p class="hint" id="app-version" style="text-align:center;opacity:.55">轻衡 v18</p>
   </div>
 
 </div>
 <div id="toast" class="toast" hidden></div>
-<script src="app.js?v=17"></script>
+<script src="app.js?v=18"></script>
 </body>
 </html>

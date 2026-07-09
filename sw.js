@@ -1,5 +1,5 @@
 // 轻衡 Service Worker — app-shell offline caching
-const CACHE = 'qingheng-v9';
+const CACHE = 'qingheng-v11';
 const ASSETS = [
   './',
   './index.html',
@@ -34,7 +34,9 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return; // don't touch api.github.com etc.
   e.respondWith(
-    fetch(request)
+    // cache:'no-cache' → always revalidate with the dev server, bypassing the
+    // browser HTTP cache, so code/style edits actually show up on next open.
+    fetch(request, { cache: 'no-cache' })
       .then((res) => {
         const copy = res.clone();
         caches.open(CACHE).then((c) => c.put(request, copy)).catch(() => {});

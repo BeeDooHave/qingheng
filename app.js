@@ -131,6 +131,48 @@
       : `<div class="empty">还没记今天的训练 💪</div>`;
   }
 
+  /* ---------- antioxidant & micronutrient daily-intake guide ---------- */
+  // 数值为普通成人参考:维生素/矿物质用 NIH 膳食参考摄入量(DRI: RDA 或 AI);
+  // 植物化合物无官方 RDA,给出研究/膳食建议区间。孕哺及特殊人群不同,仅供参考。
+  const MICRO_GUIDE = [
+    { title: '🫐 抗氧化植物化合物', note: '无官方 RDA · 下列为研究/膳食参考量,重在多样与足量', items: [
+      { n: '花青素', en: 'Anthocyanins', rec: '参考 ~29 mg/日;有益区间 100–500 mg;美国人均仅 ~12.5 mg', src: '蓝莓 · 黑莓 · 黑枸杞 · 紫甘蓝 · 紫薯 · 红葡萄', star: true },
+      { n: '番茄红素', en: 'Lycopene', rec: '无 RDA;研究常用剂量约 10 mg/日', src: '熟番茄 · 番茄酱 · 西瓜 · 粉红葡萄柚' },
+      { n: '叶黄素', en: 'Lutein', rec: '建议 6–10 mg/日(护眼);人均仅 1–4 mg', src: '羽衣甘蓝 · 菠菜 · 蛋黄 · 玉米' },
+      { n: '玉米黄质', en: 'Zeaxanthin', rec: '建议 ~2 mg/日(常与叶黄素同补)', src: '枸杞 · 彩椒 · 玉米 · 蛋黄' },
+      { n: 'β-胡萝卜素', en: 'β-Carotene', rec: '无独立 RDA(体内转化为维生素 A)', src: '胡萝卜 · 南瓜 · 红薯 · 深绿叶菜' },
+      { n: '其他多酚', en: '茶多酚/槲皮素/白藜芦醇', rec: '无 RDA;靠饮食多样化累积', src: '绿茶 · 洋葱 · 苹果 · 莓果 · 葡萄 · 黑巧克力' }
+    ] },
+    { title: '🍊 抗氧化维生素', note: '官方 RDA(普通成人)', items: [
+      { n: '维生素 C', en: 'Vitamin C', rec: '90 mg 男 / 75 mg 女;吸烟者 +35;上限 2000 mg', src: '彩椒 · 猕猴桃 · 柑橘 · 西兰花 · 草莓' },
+      { n: '维生素 E', en: 'Vitamin E', rec: '15 mg(α-生育酚);上限 1000 mg', src: '杏仁 · 葵花籽 · 植物油 · 菠菜' },
+      { n: '维生素 A', en: 'Vitamin A', rec: '900 µg RAE 男 / 700 µg 女;上限 3000 µg', src: '动物肝 · 蛋黄 · 及 β-胡萝卜素蔬果' }
+    ] },
+    { title: '⚙️ 抗氧化矿物质', note: '抗氧化酶的辅因子 · 官方 RDA/AI(成人)', items: [
+      { n: '硒', en: 'Selenium', rec: '55 µg;上限 400 µg', src: '巴西坚果(极高,1–2 颗即够)· 海鲜 · 蛋' },
+      { n: '锌', en: 'Zinc', rec: '11 mg 男 / 8 mg 女;上限 40 mg', src: '牡蛎 · 红肉 · 南瓜籽 · 豆类' },
+      { n: '铜', en: 'Copper', rec: '900 µg;上限 10 mg', src: '动物肝 · 贝类 · 坚果 · 可可' },
+      { n: '锰', en: 'Manganese', rec: '2.3 mg 男 / 1.8 mg 女(AI)', src: '全谷 · 坚果 · 茶 · 绿叶菜' }
+    ] }
+  ];
+  let mgOpen = true;
+  function renderMicroGuide() {
+    const box = $('#micro-guide'); if (!box) return;
+    box.hidden = !mgOpen;
+    box.innerHTML = MICRO_GUIDE.map(g => `
+      <div class="mg-group">
+        <p class="mg-gtitle">${esc(g.title)}</p>
+        <p class="mg-gnote">${esc(g.note)}</p>
+        ${g.items.map(it => `
+          <div class="mg-item${it.star ? ' star' : ''}">
+            <p class="mg-n">${esc(it.n)} <span class="mg-en">${esc(it.en)}</span></p>
+            <p class="mg-rec">${esc(it.rec)}</p>
+            <p class="mg-src">来源:${esc(it.src)}</p>
+          </div>`).join('')}
+      </div>`).join('') +
+      `<p class="mg-foot">数值为普通成人参考(来源:美国 NIH 膳食参考摄入量 DRI 及相关研究)。植物化合物无官方 RDA,数字为研究/膳食建议区间。孕期哺乳、疾病或特殊人群需求不同。仅供参考,非医疗建议。</p>`;
+  }
+
   /* ---------- row templates ---------- */
   function rowMeal(m, del) {
     return `<div class="row" data-edit="meal" data-id="${m.id}">
@@ -766,6 +808,12 @@
   document.addEventListener('click', e => {
     const g = e.target.closest('[data-goto]'); if (g) { goto(g.dataset.goto); return; }
     const o = e.target.closest('[data-open]'); if (o) { open(o.dataset.open); return; }
+    if (e.target.closest('#mg-toggle')) {
+      mgOpen = !mgOpen;
+      const box = $('#micro-guide'); if (box) box.hidden = !mgOpen;
+      const btn = $('#mg-toggle'); if (btn) btn.textContent = mgOpen ? '收起 ▾' : '展开 ▸';
+      return;
+    }
     if (e.target.id === 'backdrop') { closeSheet(); return; }
     const ed = e.target.closest('[data-edit]');
     if (ed && !e.target.closest('[data-del]')) { startEdit(ed.dataset.edit, ed.dataset.id); return; }
@@ -790,6 +838,7 @@
 
   /* ---------- init ---------- */
   renderToday();
+  renderMicroGuide();
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
   }

@@ -204,3 +204,17 @@ input{font-family:inherit}
 @media (prefers-reduced-motion:reduce){
   *{animation:none!important;transition:none!important}
 }
+
+/* ---------- antioxidant & micronutrient daily-intake guide ---------- */
+#micro-guide{display:flex;flex-direction:column;gap:12px}
+.mg-group{background:var(--card);border-radius:18px;padding:14px 16px;box-shadow:var(--shadow)}
+.mg-gtitle{font-size:15px;font-weight:750;letter-spacing:-.01em}
+.mg-gnote{font-size:11.5px;color:var(--muted);margin-top:2px;margin-bottom:6px}
+.mg-item{padding:9px 0;border-top:1px solid var(--line)}
+.mg-item.star{background:var(--teal-wash);margin:8px -8px;padding:11px 12px;border-radius:13px;border-top:none}
+.mg-n{font-size:14px;font-weight:700;color:var(--ink)}
+.mg-item.star .mg-n{color:var(--teal-ink)}
+.mg-en{font-size:11px;font-weight:600;color:var(--muted-2);letter-spacing:.02em}
+.mg-rec{font-size:13px;color:var(--ink);margin-top:2px;line-height:1.45;font-variant-numeric:tabular-nums}
+.mg-src{font-size:11.5px;color:var(--muted);margin-top:3px}
+.mg-foot{font-size:11px;color:var(--muted-2);line-height:1.5;padding:2px 4px 0}

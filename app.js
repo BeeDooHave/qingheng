@@ -1206,6 +1206,9 @@
         action.fn();
       });
       t.appendChild(b);
+      const bar = document.createElement('i');
+      bar.className = 'toast-timer'; // 5 秒倒计时进度条,与超时时长一致
+      t.appendChild(bar);
     }
     t.hidden = false;
     clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, action ? 5000 : 1800);

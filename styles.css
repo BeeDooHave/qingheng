@@ -263,4 +263,7 @@ input{font-family:inherit}
 .ai-card.stale{opacity:.55}
 .ai-card .ai-stale{font-size:12px;font-weight:700;color:var(--coral-ink,#c2410c);opacity:1}
 .toast-act{margin-left:14px;padding:2px 4px;color:#5ad6c6;font-size:14px;font-weight:750;letter-spacing:.02em}
+.toast{overflow:hidden} /* 让倒计时条贴合胶囊圆角 */
+.toast-timer{position:absolute;left:0;right:0;bottom:0;height:3px;background:#5ad6c6;transform-origin:left;animation:toastCount 5s linear forwards}
+@keyframes toastCount{from{transform:scaleX(1)}to{transform:scaleX(0)}}
 .primary:disabled{opacity:.45}

@@ -1163,6 +1163,7 @@
       if (Date.now() - sheetDragT < 400) return; // 刚拖拽完,忽略残留 click
       closeSheet(); return;
     }
+    if (e.target.closest('.sheet-cancel')) { closeSheet(); return; }
     const ed = e.target.closest('[data-edit]');
     if (ed && !e.target.closest('[data-del]')) { startEdit(ed.dataset.edit, ed.dataset.id); return; }
     const dn = e.target.closest('[data-date]');

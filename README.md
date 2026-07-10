@@ -21,7 +21,7 @@ python3 -m http.server 5173 --bind 0.0.0.0
 
 同一 Wi-Fi 下手机访问 `http://192.168.0.113:5173/`（Mac 的局域网 IP，路由器重新分配后需更新）。
 **改完代码不需要 git push**——服务直接读磁盘文件，bump `sw.js` 的 CACHE 版本后，手机上点设置页「强制刷新」即可拿到新版。
-版本号要同步改三处感知点：`sw.js` 的 `CACHE`、`index.html` 底部的「轻衡 vXX」标签。git push 仅作代码备份。
+版本号要同步改三处：`sw.js` 的 `CACHE`、`index.html` 底部的「轻衡 vXX」标签、`index.html` 里的 `styles.css?v=XX` 和 `app.js?v=XX`。git push 仅作代码备份。
 
 ## 部署到 GitHub Pages
 1. 仓库 Settings → Pages → Source 选择 `main` 分支 `/ (root)`

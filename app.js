@@ -430,6 +430,17 @@
 
   /* ---------- sheets ---------- */
   let openSheet = null;
+  let lockY = 0;
+  function lockBody() {
+    lockY = window.scrollY || 0;
+    const b = document.body.style;
+    b.position = 'fixed'; b.top = -lockY + 'px'; b.left = '0'; b.right = '0';
+  }
+  function unlockBody() {
+    const b = document.body.style;
+    b.position = ''; b.top = ''; b.left = ''; b.right = '';
+    window.scrollTo(0, lockY);
+  }
   function open(name) {
     closeSheet();
     if (name === 'settings') fillSettings();
@@ -438,12 +449,15 @@
     if (name === 'weight') $('#weight-input').value = '';
     if (name === 'debug') { const o = $('#dbg-out'); if (o) o.value = diagText(); }
     const s = $('#sheet-' + name);
-    s.hidden = false; $('#backdrop').hidden = false; openSheet = name;
+    s.hidden = false; s.scrollTop = 0; $('#backdrop').hidden = false;
+    openSheet = name; lockBody();
     const first = s.querySelector('input'); if (first && name !== 'settings') setTimeout(() => first.focus(), 250);
   }
   function closeSheet() {
-    if (openSheet) $('#sheet-' + openSheet).hidden = true;
+    if (!openSheet) { $('#backdrop').hidden = true; return; }
+    $('#sheet-' + openSheet).hidden = true;
     $('#backdrop').hidden = true; openSheet = null;
+    unlockBody();
   }
 
   /* ---------- diagnostics (debug sheet) ---------- */
@@ -580,9 +594,11 @@
   }
   function frequentFoods(n) {
     const seen = [];
+    const add = nm => { nm = (nm || '').trim(); if (nm && seen.indexOf(nm) < 0) seen.push(nm); };
     db.meals.slice().sort((a, b) => (b.ts || 0) - (a.ts || 0)).forEach(m => {
       const items = m.nutrients && m.nutrients.items;
-      if (items) items.forEach(it => { const nm = (it.name || '').trim(); if (nm && seen.indexOf(nm) < 0) seen.push(nm); });
+      if (items && items.length) items.forEach(it => add(it.name));
+      else (m.name || '').split(/[、,，]/).forEach(p => add(splitNameAmount(p.trim()).name)); // 手动记的餐也进常用
     });
     return seen.slice(0, n);
   }
@@ -593,10 +609,10 @@
     box.innerHTML = foods.slice(0, 10).map(f => `<button class="chip" data-food="${esc(f)}">${esc(f)}</button>`).join('');
   }
   document.addEventListener('click', e => {
-    const chip = e.target.closest('#food-chips .chip'); if (chip) { addFoodRow(chip.dataset.food, '', 'g', 'amt'); return; }
+    const chip = e.target.closest('#food-chips .chip'); if (chip) { addFoodRow(chip.dataset.food, '', 'g', 'amt'); markAiStale(); return; }
     if (e.target.closest('#add-food')) { addFoodRow('', '', 'g', 'name'); return; }
-    const u = e.target.closest('.fr-unit'); if (u) { cycleUnit(u); return; }
-    const del = e.target.closest('.fr-del'); if (del) { const r = del.closest('.food-row'); if (r) r.remove(); return; }
+    const u = e.target.closest('.fr-unit'); if (u) { cycleUnit(u); markAiStale(); return; }
+    const del = e.target.closest('.fr-del'); if (del) { const r = del.closest('.food-row'); if (r) r.remove(); markAiStale(); return; }
   });
 
   function resetMealSheet() {
@@ -623,10 +639,10 @@
     const kcal = parseInt($('#meal-kcal').value, 10);
     if (!kcal || kcal <= 0) { toast('填一下热量吧'); return; }
     const payload = { type: mealType, name, kcal, protein: parseInt($('#meal-protein').value, 10) || 0, ts: Date.now() };
-    if (aiNutrients) payload.nutrients = aiNutrients;
+    if (aiNutrients && !aiStale) payload.nutrients = aiNutrients;
     if (editing.meal) {
       const m = db.meals.find(x => x.id === editing.meal);
-      if (m) Object.assign(m, payload);
+      if (m) { if (aiStale) delete m.nutrients; Object.assign(m, payload); }
       editing.meal = null;
       save(); scheduleSync(); closeSheet(); toast('已更新'); renderAll();
     } else {
@@ -638,6 +654,7 @@
 
   /* ---------- AI nutrition ---------- */
   let aiNutrients = null;
+  let aiStale = false; // 估算后食物又被改动 → 明细不再可信,保存时丢弃
   const AI_BTN_LABEL = '✨ AI 估算营养';
   const AI_PROMPT = `你是营养估算助手。用户给出一餐吃的食物描述(中文,可能含模糊分量如"一碗""一份"),按中国常见份量与标准食物成分数据(USDA / 中国食物成分表)估算,输出 json,不要输出任何其他文字。格式:
 {"items":[{"name":"食物名","amount":"估算的量,如 150g / 1碗(约200g)","kcal":0,"protein":0,"fat":0,"carbs":0,"fiber":0,"micros":{"vitC":0,"vitE":0,"vitA":0,"se":0,"zn":0,"cu":0,"mn":0,"ca":0,"fe":0,"k":0,"anthocyanin":0,"lycopene":0,"lutein":0,"betacarotene":0}}],
@@ -657,10 +674,24 @@
 该食物确实不含或无法估算才填 0。数值保留整数或一位小数。如果输入不是食物,返回 {"error":"无法识别为食物"}。`;
 
   function resetAi() {
-    aiNutrients = null;
+    aiNutrients = null; aiStale = false;
     const r = $('#ai-result'); r.hidden = true; r.innerHTML = '';
     const b = $('#ai-estimate'); b.disabled = false; b.textContent = AI_BTN_LABEL;
   }
+
+  function markAiStale() {
+    if (!aiNutrients || aiStale) return;
+    aiStale = true;
+    const card = $('#ai-result .ai-card');
+    if (card) {
+      card.classList.add('stale');
+      card.insertAdjacentHTML('beforeend', '<p class="ai-stale">⚠️ 食物已改动,以上明细已过期 — 重新点「AI 估算」才会保存营养明细</p>');
+    }
+  }
+  // 食物行任何改动(打字/换单位/删行/点常用)都让旧估算失效
+  document.addEventListener('input', e => {
+    if (e.target.closest('#food-rows') || e.target.id === 'meal-name') markAiStale();
+  });
 
   async function estimateNutrition(text) {
     const ctrl = new AbortController();
@@ -718,11 +749,12 @@
     if (!text) { toast('先填一下吃了什么'); return; }
     if (!db.settings.dsKey) { toast('先在设置里填 DeepSeek API Key'); return; }
     if (!navigator.onLine) { toast('离线状态无法估算'); return; }
-    const btn = $('#ai-estimate');
+    const btn = $('#ai-estimate'), saveBtn = $('#save-meal');
     btn.disabled = true; btn.textContent = '估算中…';
+    saveBtn.disabled = true; // 估算中不许保存,避免存下没有营养明细的餐
     try {
       const data = await estimateNutrition(text);
-      aiNutrients = data;
+      aiNutrients = data; aiStale = false;
       showAiResult(data);
       $('#meal-kcal').value = Math.round(Number(data.total.kcal) || 0);
       if (data.total.protein != null) $('#meal-protein').value = Math.round(Number(data.total.protein) || 0);
@@ -732,6 +764,7 @@
       else toast(err.message || '估算失败');
     } finally {
       btn.disabled = false; btn.textContent = AI_BTN_LABEL;
+      saveBtn.disabled = false;
     }
   });
 
@@ -1036,14 +1069,25 @@
     }
   }
 
-  /* ---------- delete (event delegation) ---------- */
+  /* ---------- delete (event delegation, with undo) ---------- */
   document.addEventListener('click', e => {
     const del = e.target.closest('[data-del]'); if (!del) return;
     const kind = del.dataset.del, id = del.dataset.id;
+    const arr = kind === 'meal' ? db.meals : db.workouts;
+    const rec = arr.find(x => x.id === id); if (!rec) return;
     if (kind === 'meal') db.meals = db.meals.filter(m => m.id !== id);
-    if (kind === 'workout') db.workouts = db.workouts.filter(w => w.id !== id);
+    else db.workouts = db.workouts.filter(w => w.id !== id);
     db.tombstones[id] = Date.now();
-    save(); scheduleSync(); toast('已删除'); renderAll();
+    save(); scheduleSync(); renderAll();
+    toast('已删除', {
+      label: '撤销',
+      fn() {
+        delete db.tombstones[id];
+        rec.ts = Date.now(); // 比已同步出去的墓碑新,合并时会复活
+        (kind === 'meal' ? db.meals : db.workouts).push(rec);
+        save(); scheduleSync(); renderAll();
+      }
+    });
   });
 
   /* ---------- global click wiring ---------- */
@@ -1076,7 +1120,7 @@
       return;
     }
     if (e.target.closest('#force-refresh')) { hardRefresh(); return; }
-    if (e.target.id === 'backdrop') { closeSheet(); return; }
+    if (e.target.id === 'backdrop' || e.target.closest('.sheet-grip')) { closeSheet(); return; }
     const ed = e.target.closest('[data-edit]');
     if (ed && !e.target.closest('[data-del]')) { startEdit(ed.dataset.edit, ed.dataset.id); return; }
     const dn = e.target.closest('[data-date]');
@@ -1107,9 +1151,21 @@
 
   /* ---------- toast ---------- */
   let toastT;
-  function toast(msg) {
-    const t = $('#toast'); t.textContent = msg; t.hidden = false;
-    clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 1800);
+  function toast(msg, action) {
+    const t = $('#toast');
+    t.textContent = msg;
+    if (action) {
+      const b = document.createElement('button');
+      b.className = 'toast-act'; b.textContent = action.label;
+      b.addEventListener('click', ev => {
+        ev.stopPropagation();
+        clearTimeout(toastT); t.hidden = true;
+        action.fn();
+      });
+      t.appendChild(b);
+    }
+    t.hidden = false;
+    clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, action ? 5000 : 1800);
   }
 
   /* ---------- helpers ---------- */

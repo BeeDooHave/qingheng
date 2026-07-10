@@ -161,9 +161,12 @@ input{font-family:inherit}
 .sheet-backdrop{position:fixed;inset:0;background:rgba(20,22,20,.4);z-index:50;animation:fade .2s}
 .sheet{position:fixed;left:0;right:0;bottom:0;z-index:60;max-width:520px;margin:0 auto;
   background:var(--paper);border-radius:26px 26px 0 0;padding:10px 20px calc(22px + var(--safe-b));
-  box-shadow:0 -10px 40px rgba(0,0,0,.18);animation:slideUp .32s cubic-bezier(.2,.9,.2,1)}
+  box-shadow:0 -10px 40px rgba(0,0,0,.18);animation:slideUp .32s cubic-bezier(.2,.9,.2,1);
+  max-height:88vh;max-height:calc(100dvh - 48px);overflow-y:auto;
+  overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 @keyframes slideUp{from{transform:translateY(100%)}to{transform:none}}
-.sheet-grip{width:38px;height:5px;border-radius:99px;background:#d9d7ce;margin:2px auto 14px}
+.sheet-grip{width:38px;height:5px;border-radius:99px;background:#d9d7ce;margin:2px auto 14px;position:relative;cursor:pointer}
+.sheet-grip::after{content:'';position:absolute;inset:-14px -60px} /* 加大点击热区:点灰条关闭弹层 */
 .sheet-title{font-size:20px;font-weight:800;letter-spacing:-.02em;margin-bottom:16px}
 
 .seg{display:flex;gap:6px;background:#e9e7df;padding:4px;border-radius:14px;margin-bottom:16px}
@@ -255,3 +258,9 @@ input{font-family:inherit}
 .freetext summary{font-size:12.5px;color:var(--muted);cursor:pointer;list-style:none;padding:4px 0}
 .freetext summary::-webkit-details-marker{display:none}
 .freetext input{width:100%;margin-top:8px;padding:11px 12px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);font-size:15px}
+
+/* ---------- v24: stale AI card / toast undo / disabled save ---------- */
+.ai-card.stale{opacity:.55}
+.ai-card .ai-stale{font-size:12px;font-weight:700;color:var(--coral-ink,#c2410c);opacity:1}
+.toast-act{margin-left:14px;padding:2px 4px;color:#5ad6c6;font-size:14px;font-weight:750;letter-spacing:.02em}
+.primary:disabled{opacity:.45}

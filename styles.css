@@ -293,6 +293,9 @@ input{font-family:inherit}
 .sys-tips b{color:var(--coral-ink)}
 .sys-food{display:inline-block;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:2px 10px;margin:0 5px 2px 0;font-weight:650;white-space:nowrap}
 .sys-food small{color:var(--muted);font-weight:600;margin-left:4px}
+.rm-cap{font-size:12px;font-weight:650;color:var(--muted);margin:0 0 6px}
+#recent-meals{margin-bottom:12px}
+.rm-chip small{margin-left:6px;font-weight:700;color:var(--teal-ink);opacity:.75;font-variant-numeric:tabular-nums}
 
 /* ---------- v32: empty-state art & icon buttons ---------- */
 .empty-art{display:block;margin:4px auto 10px}

@@ -20,8 +20,14 @@ python3 -m http.server 5173 --bind 0.0.0.0
 ```
 
 同一 Wi-Fi 下手机访问 `http://192.168.0.113:5173/`（Mac 的局域网 IP，路由器重新分配后需更新）。
-**改完代码不需要 git push**——服务直接读磁盘文件，bump `sw.js` 的 CACHE 版本后，手机上点设置页「强制刷新」即可拿到新版。
-版本号要同步改三处：`sw.js` 的 `CACHE`、`index.html` 底部的「轻衡 vXX」标签、`index.html` 里的 `styles.css?v=XX` 和 `app.js?v=XX`。git push 仅作代码备份。
+**改完代码不需要 git push**——服务直接读磁盘文件，手机上点设置页「强制刷新」即可拿到新版。git push 仅作代码备份。
+
+改完代码的固定流程：
+
+1. `node --check app.js`
+2. 桌面浏览器打开 `http://localhost:5173/test.html`——19 条冒烟断言全绿再继续（页面渲染、弹层开关、营养进度交互、body 滚动锁、无未捕获错误、数据无丢失；全程只读不碰真实记录）
+3. `./bump.sh`——一条命令改齐 4 处版本号（sw.js CACHE、「轻衡 vXX」标签、styles/app 的 `?v=`）
+4. 手机「强制刷新」验收
 
 ## 第三方轮子(全部自托管,禁止 CDN 引用)
 

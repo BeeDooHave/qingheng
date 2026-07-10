@@ -702,21 +702,8 @@
       const m = db.meals.find(x => x.id === id); if (!m) return;
       open('meal');
       editing.meal = id;
-      mealType = m.type;
-      $$('#meal-type button').forEach(b => b.classList.toggle('active', b.dataset.v === m.type));
-      $('#meal-name').value = '';
-      renderFoodChips(); clearFoodRows();
-      const items = m.nutrients && Array.isArray(m.nutrients.items) ? m.nutrients.items : null;
-      if (items && items.length) {
-        items.forEach(it => { const p = parseAmount(it.amount); addFoodRow(it.name || '', p.amt, p.unit, null); });
-      } else {
-        const parts = (m.name || '').split(/[、,，]/).map(s => s.trim()).filter(Boolean);
-        if (parts.length) parts.forEach(p => { const s = splitNameAmount(p); addFoodRow(s.name, s.amt, s.unit, null); });
-        else addFoodRow('', '', 'g', null);
-      }
-      $('#meal-kcal').value = m.kcal || '';
-      $('#meal-protein').value = m.protein || '';
-      if (m.nutrients) { aiNutrients = m.nutrients; showAiResult(m.nutrients); }
+      applyMealToForm(m);
+      const rm = $('#recent-meals'); if (rm) rm.hidden = true; // 编辑模式不显示常用餐,防误覆盖
       $('#sheet-meal .sheet-title').textContent = '编辑这一餐';
     } else {
       const w = db.workouts.find(x => x.id === id); if (!w) return;
@@ -741,6 +728,55 @@
 
   /* ---------- meal sheet ---------- */
   let mealType = '早餐';
+  // 把一条已有的餐记录带入表单(编辑 与 常用餐复制 共用)
+  function applyMealToForm(m) {
+    mealType = m.type;
+    $$('#meal-type button').forEach(b => b.classList.toggle('active', b.dataset.v === m.type));
+    $('#meal-name').value = '';
+    renderFoodChips(); clearFoodRows();
+    const items = m.nutrients && Array.isArray(m.nutrients.items) ? m.nutrients.items : null;
+    if (items && items.length) {
+      items.forEach(it => { const p = parseAmount(it.amount); addFoodRow(it.name || '', p.amt, p.unit, null); });
+    } else {
+      const parts = (m.name || '').split(/[、,，]/).map(s => s.trim()).filter(Boolean);
+      if (parts.length) parts.forEach(p => { const s = splitNameAmount(p); addFoodRow(s.name, s.amt, s.unit, null); });
+      else addFoodRow('', '', 'g', null);
+    }
+    $('#meal-kcal').value = m.kcal || '';
+    $('#meal-protein').value = m.protein || '';
+    if (m.nutrients) { aiNutrients = JSON.parse(JSON.stringify(m.nutrients)); aiStale = false; showAiResult(aiNutrients); }
+  }
+
+  /* ---------- 最近的餐:一键复制(含营养明细,不用重新估算) ---------- */
+  function recentMeals(n) {
+    const seen = {}, out = [];
+    db.meals.slice().sort((a, b) => (b.ts || 0) - (a.ts || 0)).forEach(m => {
+      if (!m.kcal) return;
+      const key = (m.name || '').trim() || m.type;
+      if (seen[key]) return;
+      seen[key] = 1; out.push(m);
+    });
+    return out.slice(0, n);
+  }
+  function renderRecentMeals() {
+    const box = $('#recent-meals'); if (!box) return;
+    const ms = recentMeals(6);
+    if (!ms.length) { box.hidden = true; box.innerHTML = ''; return; }
+    box.hidden = false;
+    box.innerHTML = '<p class="rm-cap">最近的餐 · 点一下整份带入</p><div class="food-chips">' +
+      ms.map(m => {
+        const names = mealFoods(m);
+        const label = names.length ? names.slice(0, 2).join('、') + (names.length > 2 ? '…' : '') : (m.name || m.type).slice(0, 10);
+        return `<button class="chip rm-chip" data-recent="${m.id}">${esc(label)}<small>${m.kcal}</small></button>`;
+      }).join('') + '</div>';
+  }
+  document.addEventListener('click', e => {
+    const rc = e.target.closest('[data-recent]'); if (!rc) return;
+    const m = db.meals.find(x => x.id === rc.dataset.recent); if (!m) return;
+    resetAi();
+    applyMealToForm(m); // 不设 editing.meal:保存时新建记录
+    toast('已带入,确认后直接保存');
+  });
   /* ---------- food-row input builder ---------- */
   const FR_UNITS = ['g', '个', '碗', 'ml'];
   function addFoodRow(name, amt, unit, focusField) {
@@ -814,7 +850,7 @@
     mealType = '早餐';
     $$('#meal-type button').forEach(b => b.classList.toggle('active', b.dataset.v === '早餐'));
     $('#meal-name').value = ''; $('#meal-kcal').value = ''; $('#meal-protein').value = '';
-    clearFoodRows(); addFoodRow('', '', 'g', null); renderFoodChips();
+    clearFoodRows(); addFoodRow('', '', 'g', null); renderFoodChips(); renderRecentMeals();
     const ft = $('#sheet-meal .freetext'); if (ft) ft.open = false;
     // smart default by time
     const hr = new Date().getHours();

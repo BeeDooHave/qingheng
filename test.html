@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>轻衡 · 冒烟测试</title>
+<style>
+  body{font-family:-apple-system,system-ui,sans-serif;background:#f6f5f0;color:#1a1d1a;margin:0;padding:20px;max-width:720px;margin:0 auto}
+  h1{font-size:20px}
+  #summary{font-size:15px;font-weight:700;padding:10px 14px;border-radius:12px;margin:12px 0}
+  #summary.ok{background:#e6f6f3;color:#0a6b60}
+  #summary.fail{background:#ffece6;color:#c23c1c}
+  .t{padding:7px 10px;border-bottom:1px solid #e9e7df;font-size:13.5px;display:flex;gap:8px}
+  .t.pass::before{content:'✓';color:#0fae9c;font-weight:800}
+  .t.fail::before{content:'✕';color:#c23c1c;font-weight:800}
+  .t small{color:#8b8f88;margin-left:auto}
+  iframe{width:390px;height:600px;border:1px solid #e9e7df;border-radius:12px;display:block;margin-top:16px}
+  .note{font-size:12px;color:#8b8f88;line-height:1.6}
+</style>
+</head>
+<body>
+<h1>轻衡 · 冒烟测试</h1>
+<p class="note">非破坏性:只渲染和开关 UI,不保存/删除任何记录;开始前快照 localStorage,结束后恢复。改完代码在桌面打开本页,全绿再更新手机。</p>
+<div id="summary">运行中…</div>
+<div id="results"></div>
+<iframe id="app" src="./index.html?smoketest=1"></iframe>
+<script>
+(async function () {
+  const results = [];
+  const R = document.getElementById('results');
+  function report(name, ok, msg) {
+    results.push(ok);
+    const d = document.createElement('div');
+    d.className = 't ' + (ok ? 'pass' : 'fail');
+    d.innerHTML = name + (msg ? `<small>${msg}</small>` : '');
+    R.appendChild(d);
+  }
+  async function test(name, fn) {
+    try { await fn(); report(name, true); }
+    catch (e) { report(name, false, String(e && e.message || e).slice(0, 90)); }
+  }
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  function assert(cond, msg) { if (!cond) throw new Error(msg || 'assert failed'); }
+
+  function idSet(s) {
+    if (s == null) return [];
+    const d = JSON.parse(s);
+    return [].concat(
+      (d.meals || []).map(x => 'm' + x.id),
+      (d.workouts || []).map(x => 'w' + x.id),
+      (d.weights || []).map(x => 'kg' + x.date));
+  }
+
+  const frame = document.getElementById('app');
+  await new Promise(r => frame.addEventListener('load', r, { once: true }));
+  await sleep(1200); // 等 module 脚本与首屏渲染
+
+  // 等启动时的云端同步落定(数据连续 2 次轮询不变),再拍快照。
+  // 之后测试全程只读 UI,数据不该再有任何变化。
+  let last = localStorage.getItem('qingheng.v1'), stable = 0;
+  for (let i = 0; i < 20 && stable < 2; i++) {
+    await sleep(500);
+    const now = localStorage.getItem('qingheng.v1');
+    stable = now === last ? stable + 1 : 0;
+    last = now;
+  }
+  const snapshot = { v1: last };
+
+  const W = frame.contentWindow, D = frame.contentDocument;
+  const $ = s => D.querySelector(s);
+  const $$ = s => Array.from(D.querySelectorAll(s));
+  const errors = [];
+  W.addEventListener('error', e => errors.push(e.message));
+
+  try {
+    await test('app 启动(问候语已渲染)', () => assert($('#greeting').textContent.length > 0, 'greeting 为空'));
+    await test('数字字体已加载', () => assert(D.fonts.check('700 20px QhNum'), 'QhNum 未加载'));
+    await test('confetti 已挂载', () => assert(typeof W.confetti === 'function'));
+    await test('body-highlighter 已挂载', () => assert(W.BodyHighlighter && typeof W.BodyHighlighter.createBodyHighlighter === 'function'));
+
+    // 四个页面切换
+    for (const name of ['diet', 'training', 'stats', 'today']) {
+      await test('页面切换:' + name, async () => {
+        $(`.tab[data-goto="${name}"]`).click(); await sleep(120);
+        assert(!$(`[data-screen="${name}"]`).hidden, name + ' 未显示');
+      });
+    }
+
+    // 营养进度交互
+    await test('营养进度:当日/近7天切换', async () => {
+      $('.tab[data-goto="diet"]').click(); await sleep(120);
+      const b = $('#diet-micro [data-mgmode="avg7"]'); assert(b, '没有切换按钮'); b.click(); await sleep(120);
+      assert($('#diet-micro [data-mgmode="avg7"]').classList.contains('active'), '未激活');
+      $('#diet-micro [data-mgmode="day"]').click(); await sleep(80);
+    });
+    await test('营养进度:组展开/折叠', async () => {
+      const heads = $$('#diet-micro [data-mggrp]'); assert(heads.length === 4, '组头数量=' + heads.length);
+      heads[1].click(); await sleep(120);
+      assert($$('#diet-micro .mg-group')[1].querySelectorAll('.mg-item').length > 0, '展开后无条目');
+      $$('#diet-micro [data-mggrp]')[1].click(); await sleep(80);
+    });
+    await test('六系统行已渲染', () => assert($$('#diet-micro .sys-it').length === 6));
+
+    // 五个弹层开与关(取消路径,不触碰保存)
+    for (const [name, opener] of [['meal', '[data-open="meal"]'], ['workout', '[data-open="workout"]'], ['weight', '[data-open="weight"]'], ['settings', '[data-open="settings"]'], ['debug', '[data-open="debug"]']]) {
+      await test('弹层:' + name, async () => {
+        if (name === 'debug') { $('[data-open="settings"]').click(); await sleep(150); }
+        const o = $(opener); assert(o, '找不到入口'); o.click(); await sleep(200);
+        assert(!$('#sheet-' + name).hidden, '未打开');
+        assert(D.body.style.position === 'fixed', 'body 未锁定');
+        const c = $('#sheet-' + name + ' .sheet-cancel'); assert(c, '没有取消按钮'); c.click(); await sleep(150);
+        assert($('#sheet-' + name).hidden, '未关闭');
+        assert(D.body.style.position === '', 'body 未解锁');
+      });
+    }
+
+    // 记一餐表单(只操作表单,不保存)
+    await test('记一餐:食物行增删/单位切换', async () => {
+      $('[data-open="meal"]').click(); await sleep(200);
+      const n0 = $$('#food-rows .food-row').length;
+      $('#add-food').click(); await sleep(80);
+      assert($$('#food-rows .food-row').length === n0 + 1, '加行失败');
+      const u = $('#food-rows .fr-unit'); const before = u.dataset.unit; u.click();
+      assert(u.dataset.unit !== before, '单位未切换');
+      $$('#food-rows .fr-del').pop().click(); await sleep(80);
+      assert($$('#food-rows .food-row').length === n0, '删行失败');
+      $('#sheet-meal .sheet-cancel').click(); await sleep(120);
+    });
+
+    await test('页面无未捕获错误', () => assert(errors.length === 0, errors.join(' | ').slice(0, 90)));
+    await test('测试期间数据无增删', () => {
+      const before = idSet(snapshot.v1).sort().join(',');
+      const after = idSet(localStorage.getItem('qingheng.v1')).sort().join(',');
+      assert(before === after, '快照后数据变了');
+    });
+  } finally { /* 无需回滚:测试全程只读 UI */ }
+
+  const pass = results.filter(Boolean).length, total = results.length;
+  const sum = document.getElementById('summary');
+  sum.textContent = pass === total ? `全部通过 ${pass}/${total} ✓` : `失败 ${total - pass} 项(共 ${total})`;
+  sum.className = pass === total ? 'ok' : 'fail';
+  document.title = (pass === total ? '✓ ' : '✕ ') + '轻衡冒烟测试';
+})();
+</script>
+</body>
+</html>

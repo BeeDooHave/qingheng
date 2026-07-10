@@ -18,7 +18,7 @@
 
 ## 待做清单(按此顺序执行)
 
-1. **[实施] 常用项快捷添加(原功能 2,范围已缩)** — 食物级 chips 已有;剩:记一餐 sheet 顶部「最近的餐」chips 一键回填全套表单(食物行+kcal+protein+**nutrients 直接复用,不重新估算**);加动作 sheet 的 workout.name chips 回填 cat/sets/duration。
+1. **[实施] 常用项快捷添加(仅剩动作部分)** — 餐部分已完成(v37「最近的餐」chips,整份带入含营养明细);剩:加动作 sheet 的 workout.name chips 回填 cat/sets/duration。
 2. **[实施] 动作历史/PR(原功能 4)** — 训练条目行尾加 📈 小按钮(**点行主体=编辑,已占用**),打开 `#sheet-history`:该动作名跨日期的重量走势(复用 `lineChart()`;徒手看总次数、有氧看时长),显示 PR 和最近几次明细。无 db 变更。
 3. **[实施] 体重目标(原功能 5)** — settings 加 `targetWeight`;stats 体重卡片显示「距目标还差 x.x kg」,达标显示庆祝文案。与同步方案的 settings.ts 机制兼容(保存设置刷新 ts 即可)。
 

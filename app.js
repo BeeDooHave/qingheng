@@ -1728,6 +1728,9 @@
   /* ---------- helpers ---------- */
   function esc(s) { return String(s || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
+  /* ---------- test hooks (纯函数暴露给 test.html,不影响运行) ---------- */
+  window.__qh_test = { mergeDb, cleanMuscles, splitNameAmount, mealFoods };
+
   /* ---------- init ---------- */
   renderToday();
   if ('serviceWorker' in navigator) {

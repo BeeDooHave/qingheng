@@ -127,6 +127,36 @@
       $('#sheet-meal .sheet-cancel').click(); await sleep(120);
     });
 
+    // ---- mergeDb 纯函数测试(假数据,数据丢失风险全在这个函数里) ----
+    const M = W.__qh_test && W.__qh_test.mergeDb;
+    await test('mergeDb:已暴露', () => assert(typeof M === 'function'));
+    await test('mergeDb:同 id 新 ts 胜出', () => {
+      const r = M({ meals: [{ id: 'a', date: '2026-07-01', name: '新', ts: 2 }], settings: {} },
+                  { meals: [{ id: 'a', date: '2026-07-01', name: '旧', ts: 1 }], settings: {} });
+      assert(r.meals.length === 1 && r.meals[0].name === '新');
+    });
+    await test('mergeDb:墓碑删除远端记录', () => {
+      const r = M({ meals: [], tombstones: { b: 100 }, settings: {} },
+                  { meals: [{ id: 'b', date: '2026-07-01', ts: 50 }], settings: {} });
+      assert(r.meals.length === 0, '该删没删');
+    });
+    await test('mergeDb:撤销(记录比墓碑新)能复活', () => {
+      const r = M({ meals: [{ id: 'c', date: '2026-07-01', ts: 200 }], settings: {} },
+                  { meals: [], tombstones: { c: 100 }, settings: {} });
+      assert(r.meals.length === 1, '复活失败');
+      assert(!r.tombstones.c, '墓碑没清');
+    });
+    await test('mergeDb:密钥永远留本地(不被远端覆盖)', () => {
+      const r = M({ meals: [], settings: { syncToken: 'local', dsKey: 'k1', gistId: 'g1', ts: 1 } },
+                  { meals: [], settings: { syncToken: 'evil', dsKey: 'evil', gistId: 'evil', ts: 999 } });
+      assert(r.settings.syncToken === 'local' && r.settings.dsKey === 'k1' && r.settings.gistId === 'g1');
+    });
+    await test('mergeDb:体重按日期新 ts 胜出', () => {
+      const r = M({ weights: [{ date: '2026-07-01', kg: 70, ts: 2 }], settings: {} },
+                  { weights: [{ date: '2026-07-01', kg: 71, ts: 1 }, { date: '2026-07-02', kg: 69, ts: 1 }], settings: {} });
+      assert(r.weights.length === 2 && r.weights.find(w => w.date === '2026-07-01').kg === 70);
+    });
+
     await test('页面无未捕获错误', () => assert(errors.length === 0, errors.join(' | ').slice(0, 90)));
     await test('测试期间数据无增删', () => {
       const before = idSet(snapshot.v1).sort().join(',');

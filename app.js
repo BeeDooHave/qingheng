@@ -900,7 +900,7 @@
       : `<p class="hint">点右上角「✨ 生成」,AI 会点评你最近 7 天的饮食、训练与体重(需 DeepSeek Key)。</p>`;
   }
 
-  $('#ai-report-btn').addEventListener('click', async () => {
+  if ($('#ai-report-btn')) $('#ai-report-btn').addEventListener('click', async () => {
     if (!db.settings.dsKey) { toast('先在设置里填 DeepSeek API Key'); return; }
     if (!navigator.onLine) { toast('离线状态无法生成'); return; }
     const data = weekData();
@@ -1039,7 +1039,10 @@
   });
 
   /* ---------- data import (merge via mergeDb / replace) ---------- */
+  // 注意:SW 升级间隙可能出现「旧 HTML + 新 JS」,这些元素可能不存在;
+  // 顶层 addEventListener 必须判空,否则整个 IIFE 会挂掉(全页失效)。
   let importDb = null;
+  if ($('#import-data')) {
   $('#import-data').addEventListener('click', () => $('#import-file').click());
   $('#import-file').addEventListener('change', e => {
     const f = e.target.files && e.target.files[0];
@@ -1092,6 +1095,7 @@
     }
   });
   $('#import-cancel').addEventListener('click', () => { importDb = null; $('#import-confirm').hidden = true; });
+  } // end if #import-data
 
   /* ---------- multi-device sync (private GitHub Gist) ---------- */
 

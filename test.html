@@ -127,6 +127,21 @@
       $('#sheet-meal .sheet-cancel').click(); await sleep(120);
     });
 
+    await test('记一餐:误触关闭后草稿恢复', async () => {
+      localStorage.removeItem('qingheng.mealdraft');
+      $('[data-open="meal"]').click(); await sleep(250);
+      const inp = $('#food-rows .fr-name');
+      inp.value = '测试草稿食物';
+      inp.dispatchEvent(new W.Event('input', { bubbles: true }));
+      await sleep(500); // 等 300ms 防抖落盘
+      $('#sheet-meal .sheet-cancel').click(); await sleep(150); // 模拟误触关闭
+      $('[data-open="meal"]').click(); await sleep(300);
+      const restored = $('#food-rows .fr-name');
+      assert(restored && restored.value === '测试草稿食物', '草稿没恢复,值=' + (restored && restored.value));
+      localStorage.removeItem('qingheng.mealdraft'); // 清理测试草稿
+      $('#sheet-meal .sheet-cancel').click(); await sleep(120);
+    });
+
     // ---- mergeDb 纯函数测试(假数据,数据丢失风险全在这个函数里) ----
     const M = W.__qh_test && W.__qh_test.mergeDb;
     await test('mergeDb:已暴露', () => assert(typeof M === 'function'));

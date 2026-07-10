@@ -13,12 +13,12 @@
 | 数据导入(合并/覆盖) | ✅ 已完成(v29);覆盖导入后直推 gist 不走合并 |
 | 营养进度 当日/近7天平均 切换 | ✅ 已完成(v29);平均只算有记录的天 |
 | AI 周报(原未来展望 2) | ✅ 已完成(v29);报告存 localStorage `qingheng.aireport`,不进 db/同步 |
-| 版本号 | 当前 **v38**。改完跑 `./bump.sh` 一键改齐;验证用 `test.html`(25 条冒烟断言,见 README 流程) |
+| 版本号 | 当前 **v40**。改完跑 `./bump.sh` 一键改齐;验证用 `test.html`(26 条冒烟断言,见 README 流程) |
 | 部署 | 本地 `python3 -m http.server 5173 --bind 0.0.0.0`,手机走局域网,**不需要 push**(见 README) |
 
 ## 开发约定与可复用件(未来会话必读,先查这里再写新代码)
 
-**流程铁律**:改完 `node --check app.js` → 桌面开 `test.html` 25 条断言全绿 → `./bump.sh` → 手机强制刷新。新功能顺手往 test.html 加断言(UI 类放前段,纯函数类用 `window.__qh_test` 暴露后测)。
+**流程铁律**:改完 `node --check app.js` → 桌面开 `test.html` 断言全绿 → `./bump.sh` → 手机强制刷新。新功能顺手往 test.html 加断言(UI 类放前段,纯函数类用 `window.__qh_test` 暴露后测)。
 
 **架构规矩**(补充 PLAN-ai-nutrition 第 0 节,以此处为准):
 

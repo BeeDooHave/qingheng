@@ -25,7 +25,7 @@ python3 -m http.server 5173 --bind 0.0.0.0
 改完代码的固定流程：
 
 1. `node --check app.js`
-2. 桌面浏览器打开 `http://localhost:5173/test.html`——25 条冒烟断言全绿再继续（页面渲染、弹层开关、营养进度交互、body 滚动锁、无未捕获错误、数据无丢失；全程只读不碰真实记录）
+2. 桌面浏览器打开 `http://localhost:5173/test.html`——26 条冒烟断言全绿再继续（页面渲染、弹层开关、营养进度交互、body 滚动锁、无未捕获错误、数据无丢失；全程只读不碰真实记录）
 3. `./bump.sh`——一条命令改齐 4 处版本号（sw.js CACHE、「轻衡 vXX」标签、styles/app 的 `?v=`）
 4. 手机「强制刷新」验收
 

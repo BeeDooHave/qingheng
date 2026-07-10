@@ -728,6 +728,62 @@
 
   /* ---------- meal sheet ---------- */
   let mealType = '早餐';
+
+  /* ---------- meal draft:误触关闭不丢已填内容(仅本地,不同步) ---------- */
+  const DRAFT_KEY = 'qingheng.mealdraft';
+  let draftT = null;
+  function collectMealDraft() {
+    const box = $('#food-rows');
+    const rows = box ? [...box.querySelectorAll('.food-row')].map(r => ({
+      name: r.querySelector('.fr-name').value,
+      amt: r.querySelector('.fr-amt').value,
+      unit: r.querySelector('.fr-unit').dataset.unit || 'g'
+    })) : [];
+    return {
+      type: mealType, rows,
+      free: $('#meal-name').value,
+      kcal: $('#meal-kcal').value,
+      protein: $('#meal-protein').value,
+      nutrients: aiNutrients, stale: aiStale,
+      ts: Date.now()
+    };
+  }
+  function draftHasContent(d) {
+    return !!(d && ((d.rows || []).some(r => (r.name || '').trim()) || (d.free || '').trim() || d.kcal));
+  }
+  function saveMealDraft() {
+    if (openSheet !== 'meal' || editing.meal) return; // 编辑已有餐不写草稿
+    const d = collectMealDraft();
+    try {
+      if (draftHasContent(d)) localStorage.setItem(DRAFT_KEY, JSON.stringify(d));
+      else localStorage.removeItem(DRAFT_KEY);
+    } catch (e) {}
+  }
+  function scheduleDraft() { clearTimeout(draftT); draftT = setTimeout(saveMealDraft, 300); }
+  function clearMealDraft() { try { localStorage.removeItem(DRAFT_KEY); } catch (e) {} }
+  function restoreMealDraft() {
+    let d = null;
+    try { d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); } catch (e) {}
+    if (!draftHasContent(d) || Date.now() - (d.ts || 0) > 86400000) { clearMealDraft(); return false; }
+    mealType = d.type || mealType;
+    $$('#meal-type button').forEach(b => b.classList.toggle('active', b.dataset.v === mealType));
+    clearFoodRows();
+    (d.rows && d.rows.length ? d.rows : [{ name: '', amt: '', unit: 'g' }]).forEach(r => addFoodRow(r.name, r.amt, r.unit, null));
+    $('#meal-name').value = d.free || '';
+    $('#meal-kcal').value = d.kcal || '';
+    $('#meal-protein').value = d.protein || '';
+    if (d.nutrients) {
+      aiNutrients = d.nutrients; aiStale = false;
+      showAiResult(aiNutrients);
+      if (d.stale) markAiStale();
+    }
+    toast('已恢复未保存的草稿', { label: '清空', fn() { clearMealDraft(); resetMealSheet(); } });
+    return true;
+  }
+  // 表单里任何输入都排队写草稿(sheet 没开/在编辑时 saveMealDraft 自己拦)
+  document.addEventListener('input', e => {
+    if (e.target.closest('#sheet-meal')) scheduleDraft();
+  });
   // 把一条已有的餐记录带入表单(编辑 与 常用餐复制 共用)
   function applyMealToForm(m) {
     mealType = m.type;
@@ -775,6 +831,7 @@
     const m = db.meals.find(x => x.id === rc.dataset.recent); if (!m) return;
     resetAi();
     applyMealToForm(m); // 不设 editing.meal:保存时新建记录
+    scheduleDraft();
     toast('已带入,确认后直接保存');
   });
   /* ---------- food-row input builder ---------- */
@@ -837,10 +894,10 @@
     box.innerHTML = foods.slice(0, 10).map(f => `<button class="chip" data-food="${esc(f)}">${esc(f)}</button>`).join('');
   }
   document.addEventListener('click', e => {
-    const chip = e.target.closest('#food-chips .chip'); if (chip) { addFoodRow(chip.dataset.food, '', 'g', 'amt'); markAiStale(); return; }
+    const chip = e.target.closest('#food-chips .chip'); if (chip) { addFoodRow(chip.dataset.food, '', 'g', 'amt'); markAiStale(); scheduleDraft(); return; }
     if (e.target.closest('#add-food')) { addFoodRow('', '', 'g', 'name'); return; }
-    const u = e.target.closest('.fr-unit'); if (u) { cycleUnit(u); markAiStale(); return; }
-    const del = e.target.closest('.fr-del'); if (del) { const r = del.closest('.food-row'); if (r) r.remove(); markAiStale(); return; }
+    const u = e.target.closest('.fr-unit'); if (u) { cycleUnit(u); markAiStale(); scheduleDraft(); return; }
+    const del = e.target.closest('.fr-del'); if (del) { const r = del.closest('.food-row'); if (r) r.remove(); markAiStale(); scheduleDraft(); return; }
   });
 
   function resetMealSheet() {
@@ -857,10 +914,12 @@
     const def = hr < 10 ? '早餐' : hr < 15 ? '午餐' : hr < 21 ? '晚餐' : '加餐';
     mealType = def;
     $$('#meal-type button').forEach(b => b.classList.toggle('active', b.dataset.v === def));
+    restoreMealDraft(); // 有未保存草稿就恢复(覆盖上面的默认值)
   }
   $('#meal-type').addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
     mealType = b.dataset.v; $$('#meal-type button').forEach(x => x.classList.toggle('active', x === b));
+    scheduleDraft();
   });
   $('#save-meal').addEventListener('click', () => {
     const name = readMealInput();
@@ -875,6 +934,7 @@
       save(); scheduleSync(); closeSheet(); toast('已更新'); renderAll();
     } else {
       db.meals.push(Object.assign({ id: uid(), date: sel.diet }, payload));
+      clearMealDraft(); // 保存成功,草稿完成使命
       save(); scheduleSync(); closeSheet(); toast('已记录 ' + kcal + ' kcal'); renderAll();
       goto('diet');
     }
@@ -986,6 +1046,7 @@
       showAiResult(data);
       $('#meal-kcal').value = Math.round(Number(data.total.kcal) || 0);
       if (data.total.protein != null) $('#meal-protein').value = Math.round(Number(data.total.protein) || 0);
+      saveMealDraft(); // 估算结果也进草稿,误触关闭不用重新估
     } catch (err) {
       if (err.name === 'AbortError') toast('请求超时,稍后再试');
       else if (err instanceof TypeError) toast('网络错误(可能是 CORS 拦截)');

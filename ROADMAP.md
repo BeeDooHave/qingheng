@@ -1,6 +1,6 @@
 # 轻衡 · 路线图与待做清单
 
-> 给后续实施 agent(或未来会话)的总览。配套文档:`PLAN-ai-nutrition.md`(AI 营养估算,已实施)、`PLAN-sync.md`(多设备同步,待实施)。架构约定见 PLAN-ai-nutrition.md 第 0 节,对所有任务生效。
+> 给后续实施 agent(或未来会话)的总览。**动手前必读下方「开发约定与可复用件」**。配套文档:`PLAN-ai-nutrition.md`、`PLAN-sync.md`(均已实施,作历史参考;其第 0 节架构约定仍有效,与本文档冲突时以本文档为准)。
 
 ## 当前状态(2026-07-10)
 
@@ -15,6 +15,35 @@
 | AI 周报(原未来展望 2) | ✅ 已完成(v29);报告存 localStorage `qingheng.aireport`,不进 db/同步 |
 | 版本号 | 当前 **v38**。改完跑 `./bump.sh` 一键改齐;验证用 `test.html`(25 条冒烟断言,见 README 流程) |
 | 部署 | 本地 `python3 -m http.server 5173 --bind 0.0.0.0`,手机走局域网,**不需要 push**(见 README) |
+
+## 开发约定与可复用件(未来会话必读,先查这里再写新代码)
+
+**流程铁律**:改完 `node --check app.js` → 桌面开 `test.html` 25 条断言全绿 → `./bump.sh` → 手机强制刷新。新功能顺手往 test.html 加断言(UI 类放前段,纯函数类用 `window.__qh_test` 暴露后测)。
+
+**架构规矩**(补充 PLAN-ai-nutrition 第 0 节,以此处为准):
+
+- **新的顶层 `$('#xx').addEventListener` 必须判空**——SW 升级间隙会出现「旧 HTML + 新 JS」,不判空整个 IIFE 挂掉全页失效(v29 事故)。
+- 密钥(dsKey/syncToken/gistId)**永不上传**:gistPayload 剥离、mergeDb 保本地、导出剥离。动这三处前先看 test.html 里的 mergeDb 断言。
+- 弹层规矩:`open(name)`/`closeSheet()`,自带 body 锁滚、下拉关闭、grip/背景/取消三种关法;新弹层照抄现有结构即可,别自己写开关逻辑。
+- 第三方轮子:npm 拿包 → 单文件进 `vendor/` → sw.js ASSETS → README 轮子表登记。禁 CDN。
+
+**已有的工具函数(别重写)**,都在 app.js:
+
+| 函数 | 用途 |
+|---|---|
+| `dsJson(system, user, maxTokens)` | DeepSeek json_object 调用,带超时/401/错误归一(AI 周报的 genReport 是纯文本变体) |
+| `toast(msg, {label, fn})` | 第二参可选:带按钮+5 秒倒计时条(删除撤销在用) |
+| `celebrate(big)` | confetti 彩带,自动判空可降级 |
+| `applyMealToForm(m)` | 整餐带入表单(编辑与常用餐复制共用) |
+| `mergeDb(local, remote)` | 唯一的合并入口,墓碑/复活/密钥语义有断言保护 |
+| `emptyArt(kind)` / `I_TRASH` / `I_X` / `SYS_ICONS` | 自绘线性插画与图标,新图标沿用此风格(24 grid, stroke 2) |
+| `nutritionOn(dk)` / `nutritionAvg7(dk)` / `sysPct` | 营养聚合,任何新统计从这取数 |
+| `musclesFor(w)` / `MUSCLE_MAP` / `MUSCLE_CN` | 动作→肌群(AI 优先,关键词兜底) |
+| `renderMuscleMap(k)` | 人体热力图(body-highlighter 封装) |
+| `mealFoods(m)` / `splitNameAmount` / `parseAmount` | 餐名/食物文本解析 |
+| `dlog(tag, msg)` | 持久化调试日志,进诊断页 |
+
+**测试钩子**:`window.__qh_test = { mergeDb, cleanMuscles, splitNameAmount, mealFoods }`——新纯函数加进去并在 test.html 补断言。
 
 ## 待做清单(按此顺序执行)
 

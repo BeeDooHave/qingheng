@@ -603,7 +603,9 @@
     const s = $('#sheet-' + name);
     s.hidden = false; s.scrollTop = 0; $('#backdrop').hidden = false;
     openSheet = name; lockBody();
-    const first = s.querySelector('input'); if (first && name !== 'settings') setTimeout(() => first.focus(), 250);
+    // 空表单才自动聚焦;恢复了草稿/带入了内容就不抢光标
+    const first = s.querySelector('input');
+    if (first && name !== 'settings') setTimeout(() => { if (!first.value) first.focus(); }, 250);
   }
   function closeSheet() {
     if (!openSheet) { $('#backdrop').hidden = true; return; }
@@ -907,14 +909,14 @@
     mealType = '早餐';
     $$('#meal-type button').forEach(b => b.classList.toggle('active', b.dataset.v === '早餐'));
     $('#meal-name').value = ''; $('#meal-kcal').value = ''; $('#meal-protein').value = '';
-    clearFoodRows(); addFoodRow('', '', 'g', null); renderFoodChips(); renderRecentMeals();
+    clearFoodRows(); renderFoodChips(); renderRecentMeals(); // 行稍后一次性构建,避免闪烁
     const ft = $('#sheet-meal .freetext'); if (ft) ft.open = false;
     // smart default by time
     const hr = new Date().getHours();
     const def = hr < 10 ? '早餐' : hr < 15 ? '午餐' : hr < 21 ? '晚餐' : '加餐';
     mealType = def;
     $$('#meal-type button').forEach(b => b.classList.toggle('active', b.dataset.v === def));
-    restoreMealDraft(); // 有未保存草稿就恢复(覆盖上面的默认值)
+    if (!restoreMealDraft()) addFoodRow('', '', 'g', null); // 有草稿恢复草稿,没有才建空行——只建一次
   }
   $('#meal-type').addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;

@@ -11,7 +11,7 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
   <link rel="icon" href="favicon-64.png" />
-  <link rel="stylesheet" href="styles.css?v=33" />
+  <link rel="stylesheet" href="styles.css?v=34" />
 </head>
 <body>
 <div id="app">
@@ -273,6 +273,9 @@
         <input id="wo-burn" type="number" inputmode="numeric" placeholder="选填,留空自动估算" /></label>
     </div>
 
+    <button class="ai-btn" id="wo-ai">AI 估算消耗</button>
+    <p class="hint" id="wo-ai-result" hidden></p>
+
     <button class="primary accent-coral" id="save-workout">保存</button>
     <button class="text-btn sheet-cancel">取消</button>
   </div>
@@ -338,12 +341,12 @@
     <button class="text-btn" id="force-refresh">强制刷新(拿最新版)</button>
     <button class="text-btn" data-open="debug">诊断信息</button>
     <button class="text-btn sheet-cancel">取消</button>
-    <p class="hint" id="app-version" style="text-align:center;opacity:.55">轻衡 v33</p>
+    <p class="hint" id="app-version" style="text-align:center;opacity:.55">轻衡 v34</p>
   </div>
 
 </div>
 <div id="toast" class="toast" hidden></div>
 <script src="vendor/confetti.min.js" defer></script>
-<script src="app.js?v=33"></script>
+<script src="app.js?v=34"></script>
 </body>
 </html>

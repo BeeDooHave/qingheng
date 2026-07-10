@@ -1,5 +1,5 @@
 // 轻衡 Service Worker — app-shell offline caching
-const CACHE = 'qingheng-v33';
+const CACHE = 'qingheng-v34';
 const ASSETS = [
   './',
   './index.html',

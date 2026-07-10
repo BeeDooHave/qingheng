@@ -71,12 +71,9 @@
   }
   function trainingBurnOn(k) {
     return workoutsOn(k).reduce((a, w) => {
-      if (w.cat === '有氧') {
-        if (w.burn) return a + Number(w.burn);
-        return a + Math.round((Number(w.duration) || 0) * 8);
-      }
-      const sets = (w.sets || []).length;
-      return a + sets * 6; // rough estimate for strength/bodyweight
+      if (w.burn) return a + Number(w.burn); // 手填或 AI 估算,任何类别都优先用
+      if (w.cat === '有氧') return a + Math.round((Number(w.duration) || 0) * 8);
+      return a + (w.sets || []).length * 6; // 兜底粗估:每组 6 kcal
     }, 0);
   }
   function outputOn(k) { return (Number(db.settings.bmr) || 0) + trainingBurnOn(k); }
@@ -677,6 +674,7 @@
         if (!setsData.length) setsData = [{ w: '', reps: '' }];
       }
       applyCat();
+      if (w.cat !== '有氧' && w.burn) { woAiBurn = Number(w.burn); showWoAi(woAiBurn, '沿用上次估算'); }
       $('#sheet-workout .sheet-title').textContent = '编辑动作';
     }
   }
@@ -1002,7 +1000,7 @@
     $('#wo-name').value = '';
     $('#wo-duration').value = ''; $('#wo-distance').value = ''; $('#wo-burn').value = '';
     setsData = [{ w: '', reps: '' }, { w: '', reps: '' }, { w: '', reps: '' }];
-    renderSets(); applyCat();
+    renderSets(); applyCat(); resetWoAi();
   }
   let setsData = [];
   function renderSets() {
@@ -1052,6 +1050,7 @@
         .filter(s => (Number(s.reps) || 0) > 0 || (Number(s.w) || 0) > 0)
         .map(s => ({ w: Number(s.w) || 0, reps: Number(s.reps) || 0 }));
       if (!wo.sets.length) { toast('至少填一组次数'); return; }
+      if (woAiBurn) wo.burn = woAiBurn; // 力量/徒手的 AI 估算消耗
     }
     if (editing.workout) {
       const w = db.workouts.find(x => x.id === editing.workout);
@@ -1066,6 +1065,85 @@
       save(); scheduleSync(); closeSheet(); toast('动作已记录'); renderAll();
       goto('training');
     }
+  });
+
+  /* ---------- workout AI burn estimate ---------- */
+  // 通用 DeepSeek JSON 调用(json_object 模式)
+  async function dsJson(system, user, maxTokens) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 30000);
+    try {
+      const res = await fetch('https://api.deepseek.com/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + db.settings.dsKey },
+        signal: ctrl.signal,
+        body: JSON.stringify({
+          model: 'deepseek-v4-flash',
+          thinking: { type: 'disabled' },
+          response_format: { type: 'json_object' },
+          max_tokens: maxTokens || 800,
+          temperature: 0.3,
+          messages: [{ role: 'system', content: system }, { role: 'user', content: user }]
+        })
+      });
+      if (res.status === 401) throw new Error('API Key 无效,检查设置里的 Key');
+      if (!res.ok) throw new Error('估算失败 (' + res.status + '),稍后再试');
+      const json = await res.json();
+      let data;
+      try { data = JSON.parse(json.choices[0].message.content); }
+      catch (e) { throw new Error('返回格式异常,再试一次'); }
+      if (data.error) throw new Error(String(data.error));
+      return data;
+    } finally { clearTimeout(timer); }
+  }
+
+  let woAiBurn = null;
+  function resetWoAi() {
+    woAiBurn = null;
+    const r = $('#wo-ai-result'); if (r) { r.hidden = true; r.textContent = ''; }
+    const b = $('#wo-ai'); if (b) { b.disabled = false; b.textContent = 'AI 估算消耗'; }
+  }
+  function showWoAi(kcal, note) {
+    const r = $('#wo-ai-result'); if (!r) return;
+    r.textContent = `≈ ${kcal} kcal · AI 估算,保存后计入消耗` + (note ? ' · ' + note : '');
+    r.hidden = false;
+  }
+  const WO_PROMPT = '你是运动能量消耗估算助手。根据动作名称、类别、组数/次数/重量或时长/距离,以及体重(kg,0 表示未知按 70 算),用 MET 方法估算这一条训练记录的总消耗,输出 json:{"kcal":0,"note":"一句话假设说明"},不要输出任何其他文字。力量/徒手按实际做功时间估算(每组约 30-45 秒,组间休息不计入),不要按整段训练时长高估;kcal 取整数。无法识别为运动时返回 {"error":"原因"}。';
+  if ($('#wo-ai')) $('#wo-ai').addEventListener('click', async () => {
+    const name = $('#wo-name').value.trim();
+    if (!name) { toast('先填动作名称'); return; }
+    if (!db.settings.dsKey) { toast('先在设置里填 DeepSeek API Key'); return; }
+    if (!navigator.onLine) { toast('离线状态无法估算'); return; }
+    const data = { name, cat: woCat, weight_kg: latestWeight() || 0 };
+    if (woCat === '有氧') {
+      data.duration_min = parseInt($('#wo-duration').value, 10) || 0;
+      data.distance_km = parseFloat($('#wo-distance').value) || 0;
+      if (!data.duration_min && !data.distance_km) { toast('先填时长或距离'); return; }
+    } else {
+      syncSets();
+      data.sets = setsData.filter(s => (Number(s.reps) || 0) > 0).map(s => ({ kg: Number(s.w) || 0, reps: Number(s.reps) || 0 }));
+      if (!data.sets.length) { toast('先填几组次数'); return; }
+    }
+    const btn = $('#wo-ai'), saveBtn = $('#save-workout');
+    btn.disabled = true; btn.textContent = '估算中…'; saveBtn.disabled = true;
+    try {
+      const res = await dsJson(WO_PROMPT, JSON.stringify(data), 500);
+      const kcal = Math.round(Number(res.kcal) || 0);
+      if (!kcal) throw new Error('返回格式异常,再试一次');
+      woAiBurn = kcal;
+      if (woCat === '有氧') $('#wo-burn').value = kcal;
+      showWoAi(kcal, res.note || '');
+    } catch (err) {
+      if (err.name === 'AbortError') toast('请求超时,稍后再试');
+      else if (err instanceof TypeError) toast('网络错误,稍后再试');
+      else toast(err.message || '估算失败');
+    } finally {
+      btn.disabled = false; btn.textContent = 'AI 估算消耗'; saveBtn.disabled = false;
+    }
+  });
+  // 组数/次数一改,旧估算作废
+  document.addEventListener('input', e => {
+    if (e.target.closest('#sets-list') && woCat !== '有氧' && woAiBurn) resetWoAi();
   });
 
   /* ---------- weight ---------- */

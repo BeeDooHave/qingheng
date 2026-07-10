@@ -460,6 +460,45 @@
     unlockBody();
   }
 
+  /* ---------- drag-down to close (native bottom-sheet feel) ---------- */
+  let sheetDragT = 0; // 最近一次拖拽结束时间,防止拖完又触发 grip 的 click
+  (function () {
+    let el = null, startY = 0, dy = 0, dragging = false, fromGrip = false;
+    document.addEventListener('touchstart', e => {
+      const s = e.target.closest('.sheet'); if (!s || !openSheet) return;
+      el = s; startY = e.touches[0].clientY; dy = 0; dragging = false;
+      fromGrip = !!e.target.closest('.sheet-grip');
+    }, { passive: true });
+    document.addEventListener('touchmove', e => {
+      if (!el) return;
+      const d = e.touches[0].clientY - startY;
+      if (!dragging) {
+        // 只在「从灰条拖」或「内容已滚到顶且往下拉」时接管;往上滑交还给内部滚动
+        if (d > 6 && (fromGrip || el.scrollTop <= 0)) { dragging = true; el.style.transition = 'none'; }
+        else if (d < -6) { el = null; return; }
+        else return;
+      }
+      dy = Math.max(0, d);
+      el.style.transform = 'translateY(' + dy + 'px)';
+      if (e.cancelable) e.preventDefault();
+    }, { passive: false });
+    document.addEventListener('touchend', () => {
+      if (!el) return;
+      const s = el; el = null;
+      if (!dragging) return;
+      dragging = false; sheetDragT = Date.now();
+      s.style.transition = 'transform .22s cubic-bezier(.2,.9,.2,1)';
+      if (dy > 90) {
+        s.style.transform = 'translateY(105%)';
+        setTimeout(() => { closeSheet(); s.style.transition = ''; s.style.transform = ''; }, 230);
+      } else {
+        s.style.transform = '';
+        setTimeout(() => { s.style.transition = ''; }, 240);
+      }
+      dy = 0;
+    });
+  })();
+
   /* ---------- diagnostics (debug sheet) ---------- */
   function fmtT(ms) { try { return new Date(ms).toLocaleString(); } catch (e) { return '-'; } }
   function daySummary(dk) {
@@ -1120,7 +1159,10 @@
       return;
     }
     if (e.target.closest('#force-refresh')) { hardRefresh(); return; }
-    if (e.target.id === 'backdrop' || e.target.closest('.sheet-grip')) { closeSheet(); return; }
+    if (e.target.id === 'backdrop' || e.target.closest('.sheet-grip')) {
+      if (Date.now() - sheetDragT < 400) return; // 刚拖拽完,忽略残留 click
+      closeSheet(); return;
+    }
     const ed = e.target.closest('[data-edit]');
     if (ed && !e.target.closest('[data-del]')) { startEdit(ed.dataset.edit, ed.dataset.id); return; }
     const dn = e.target.closest('[data-date]');

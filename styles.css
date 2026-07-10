@@ -307,3 +307,6 @@ input{font-family:inherit}
 .mg-gsum.done{color:var(--teal-ink)}
 .mg-gsum i{font-style:normal;margin-left:5px;color:var(--muted-2)}
 .primary:disabled{opacity:.45}
+
+/* ---------- v39: backup hint ---------- */
+.hint.warn{color:var(--coral-ink);font-weight:650}

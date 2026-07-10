@@ -1340,6 +1340,7 @@
     $('#set-synctoken').value = db.settings.syncToken || '';
     $('#set-gistid').value = db.settings.gistId || '';
     updateSyncStatus();
+    updateBackupHint();
   }
   $('#save-settings').addEventListener('click', () => {
     db.settings.name = $('#set-name').value.trim();
@@ -1351,6 +1352,17 @@
     db.settings.ts = Date.now();
     save(); scheduleSync(); closeSheet(); toast('已保存'); renderAll();
   });
+  const EXPORT_KEY = 'qingheng.lastexport'; // 本地记录,不同步
+  function updateBackupHint() {
+    const el = $('#backup-hint'); if (!el) return;
+    let ts = 0; try { ts = Number(localStorage.getItem(EXPORT_KEY)) || 0; } catch (e) {}
+    const days = ts ? Math.floor((Date.now() - ts) / 86400000) : -1;
+    if (days < 0) { el.textContent = '还没手动导出过备份'; el.classList.add('warn'); }
+    else {
+      el.textContent = '上次导出备份:' + (days === 0 ? '今天' : days + ' 天前');
+      el.classList.toggle('warn', days > 30);
+    }
+  }
   $('#sync-now').addEventListener('click', () => syncNow(false));
   $('#export-data').addEventListener('click', () => {
     // Strip the sync token so shared/backed-up JSON never leaks credentials.
@@ -1363,6 +1375,8 @@
     a.href = URL.createObjectURL(blob);
     a.download = `轻衡备份-${todayKey}.json`;
     a.click(); URL.revokeObjectURL(a.href);
+    try { localStorage.setItem(EXPORT_KEY, String(Date.now())); } catch (e) {}
+    updateBackupHint();
   });
 
   /* ---------- data import (merge via mergeDb / replace) ---------- */

@@ -29,6 +29,14 @@ python3 -m http.server 5173 --bind 0.0.0.0
 3. `./bump.sh`——一条命令改齐 4 处版本号（sw.js CACHE、「轻衡 vXX」标签、styles/app 的 `?v=`）
 4. 手机「强制刷新」验收
 
+## 备份策略(三层)
+
+1. **云端 Gist(实时)**:app 内配置同步后每次改动 30 秒内推云端;gist 自带修订历史,在 `gist.github.com/<GIST_ID>/revisions` 可翻任意历史版本,误删可从旧版本复制 JSON 用「导入数据备份 → 覆盖导入」恢复。
+2. **Mac 每日快照(独立副本)**:`./backup.sh` 从 gist 拉数据存 `backups/qingheng-日期.json`,保留 30 份。首次使用建 `.backup-secrets`(两行 `TOKEN=` / `GIST_ID=`,已 gitignore 千万别提交,GitHub 扫到会自动吊销 token);自动化:`crontab -e` 加 `30 22 * * * /Users/ljh/Documents/qingheng/backup.sh >/dev/null 2>&1`。
+3. **手动导出(异地/换机)**:设置页「导出数据备份」,下方会显示上次导出时间,超 30 天变红提醒。
+
+恢复统一走设置页「导入数据备份」:合并导入(常规)或覆盖导入(整库回滚,会直推云端)。
+
 ## 第三方轮子(全部自托管,禁止 CDN 引用)
 
 | 文件 | 来源 | 版本 | License | 用途 |

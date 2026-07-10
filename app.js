@@ -308,6 +308,49 @@
     box.hidden = !mgOpenD; box.innerHTML = progressHtml(sel.diet);
   }
 
+  /* ---------- inline icons (lucide) & empty-state art ---------- */
+  const I_TRASH = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
+  const I_X = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
+  function emptyArt(kind) {
+    const sw = 'stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"';
+    if (kind === 'diet') return `<svg class="empty-art" viewBox="0 0 120 84" width="108" height="76" aria-hidden="true">
+      <circle cx="60" cy="46" r="28" fill="var(--teal-wash)"/>
+      <path d="M34 46a26 22 0 0 0 52 0" fill="var(--card)" stroke="var(--teal-ink)" ${sw}/>
+      <path d="M32 46h56" stroke="var(--teal-ink)" ${sw}/>
+      <path d="M52 72h16" stroke="var(--teal-ink)" ${sw}/>
+      <path d="M50 36c0-4 4-5 4-9M64 38c0-4 4-5 4-9" stroke="var(--teal)" ${sw}/>
+      <path d="M90 20l1.6 4 4 1.6-4 1.6-1.6 4-1.6-4-4-1.6 4-1.6z" fill="var(--coral)" opacity=".75"/>
+    </svg>`;
+    if (kind === 'training') return `<svg class="empty-art" viewBox="0 0 120 84" width="108" height="76" aria-hidden="true">
+      <circle cx="60" cy="44" r="28" fill="var(--coral-wash)"/>
+      <path d="M44 44h32" stroke="var(--coral-ink)" ${sw}/>
+      <rect x="34" y="32" width="9" height="24" rx="3.5" fill="var(--card)" stroke="var(--coral-ink)" stroke-width="2.2"/>
+      <rect x="26" y="36" width="7" height="16" rx="3" fill="var(--card)" stroke="var(--coral-ink)" stroke-width="2.2"/>
+      <rect x="77" y="32" width="9" height="24" rx="3.5" fill="var(--card)" stroke="var(--coral-ink)" stroke-width="2.2"/>
+      <rect x="87" y="36" width="7" height="16" rx="3" fill="var(--card)" stroke="var(--coral-ink)" stroke-width="2.2"/>
+      <path d="M30 18c6-4 13-6 20-7" stroke="var(--teal)" ${sw}/>
+    </svg>`;
+    return `<svg class="empty-art" viewBox="0 0 120 84" width="108" height="76" aria-hidden="true">
+      <circle cx="60" cy="42" r="28" fill="var(--teal-wash)"/>
+      <rect x="38" y="24" width="44" height="34" rx="9" fill="var(--card)" stroke="var(--teal-ink)" stroke-width="2.2"/>
+      <path d="M51 40a9 9 0 0 1 18 0" stroke="var(--teal-ink)" ${sw}/>
+      <path d="M60 40l6-7" stroke="var(--coral)" ${sw}/>
+      <path d="M32 72c12 2 26-2 33-11" stroke="var(--teal)" ${sw}/>
+      <path d="M66 60l8-2-3 8z" fill="var(--teal)"/>
+    </svg>`;
+  }
+
+  /* ---------- celebration (canvas-confetti, self-hosted, optional) ---------- */
+  function celebrate(big) {
+    if (typeof confetti !== 'function') return;
+    confetti({
+      particleCount: big ? 130 : 60,
+      spread: big ? 75 : 55,
+      origin: { y: 0.72 },
+      colors: ['#0fae9c', '#ff6a45', '#f3c53d', '#1a1d1a']
+    });
+  }
+
   /* ---------- row templates ---------- */
   function mealFoods(m) {
     const items = m.nutrients && Array.isArray(m.nutrients.items) ? m.nutrients.items : null;
@@ -328,7 +371,7 @@
       <div class="r-body"><p class="r-title">${esc(title)}</p>
         <p class="r-sub">${esc(bits.join(' · ') || m.type)}</p></div>
       <p class="r-val">${m.kcal || 0}<small>kcal</small></p>
-      ${del ? `<button class="r-del" data-del="meal" data-id="${m.id}">✕</button>` : ''}
+      ${del ? `<button class="r-del" data-del="meal" data-id="${m.id}">${I_TRASH}</button>` : ''}
     </div>`;
   }
   function rowWorkout(w, del) {
@@ -347,7 +390,7 @@
       <div class="r-icon i-coral">${catEmoji(w.cat)}</div>
       <div class="r-body"><p class="r-title">${esc(w.name || w.cat)}</p><p class="r-sub">${w.cat} · ${sub}</p></div>
       <p class="r-val">${val}</p>
-      ${del ? `<button class="r-del" data-del="workout" data-id="${w.id}">✕</button>` : ''}
+      ${del ? `<button class="r-del" data-del="workout" data-id="${w.id}">${I_TRASH}</button>` : ''}
     </div>`;
   }
   const mealEmoji = t => ({ '早餐': '🍳', '午餐': '🍚', '晚餐': '🥗', '加餐': '🍎' }[t] || '🍽️');
@@ -376,7 +419,7 @@
       return `<div><div class="mg-title">${type}<span>${sub} kcal</span></div>
         <div class="stack">${items.map(m => rowMeal(m, true)).join('')}</div></div>`;
     }).filter(Boolean).join('');
-    $('#diet-list').innerHTML = groups || `<div class="empty">这天还没有饮食记录<br>点下面「记一餐」开始</div>`;
+    $('#diet-list').innerHTML = groups || `<div class="empty">${emptyArt('diet')}这天还没有饮食记录<br>点下面「记一餐」开始</div>`;
     renderDietProgress();
   }
 
@@ -390,7 +433,7 @@
     $('#train-burn').textContent = trainingBurnOn(k);
     $('#training-list').innerHTML = wos.length
       ? wos.map(w => rowWorkout(w, true)).join('')
-      : `<div class="empty">这天还没有训练记录<br>点下面「加动作」开始</div>`;
+      : `<div class="empty">${emptyArt('training')}这天还没有训练记录<br>点下面「加动作」开始</div>`;
   }
 
   /* ---------- STATS ---------- */
@@ -398,7 +441,11 @@
     // weight chart
     const ws = db.weights.slice().sort((a, b) => a.date < b.date ? -1 : 1).slice(-14);
     const wc = $('#weight-chart'), we = $('#weight-empty');
-    if (ws.length < 1) { wc.innerHTML = ''; we.style.display = 'block'; $('#weight-trend').textContent = '—'; }
+    if (ws.length < 1) {
+      wc.innerHTML = ''; we.style.display = 'block';
+      we.innerHTML = emptyArt('weight') + '还没有体重记录,点右上角记一次吧。';
+      $('#weight-trend').textContent = '—';
+    }
     else {
       we.style.display = 'none';
       wc.innerHTML = lineChart(ws.map(x => x.kg), ws.map(x => x.date));
@@ -647,7 +694,7 @@
       `<input class="fr-name" placeholder="食物名" value="${esc(name || '')}" autocomplete="off" />` +
       `<input class="fr-amt" type="number" inputmode="decimal" placeholder="量" value="${esc(amt || '')}" />` +
       `<button class="fr-unit" data-unit="${esc(u)}">${esc(u)}</button>` +
-      `<button class="fr-del" aria-label="删除">✕</button>`;
+      '<button class="fr-del" aria-label="删除">' + I_X + '</button>';
     box.appendChild(row);
     if (focusField) setTimeout(() => { const f = row.querySelector(focusField === 'amt' ? '.fr-amt' : '.fr-name'); if (f) f.focus(); }, 60);
   }
@@ -937,6 +984,7 @@
       const text = await genReport(data);
       try { localStorage.setItem(RPT_KEY, JSON.stringify({ ts: Date.now(), text })); } catch (e) {}
       renderReport();
+      celebrate(false);
     } catch (err) {
       toast(err.message || '生成失败');
     } finally {
@@ -964,7 +1012,7 @@
         <span class="set-idx">${i + 1}</span>
         <input type="number" inputmode="decimal" class="s-w" placeholder="${woCat === '徒手' ? '—' : '0'}" value="${s.w}" ${woCat === '徒手' ? 'disabled' : ''}/>
         <input type="number" inputmode="numeric" class="s-r" placeholder="0" value="${s.reps}"/>
-        <button class="set-del" data-si="${i}">✕</button>
+        <button class="set-del" data-si="${i}">${I_X}</button>
       </div>`).join('');
   }
   function applyCat() {
@@ -1024,10 +1072,12 @@
   $('#save-weight').addEventListener('click', () => {
     const kg = parseFloat($('#weight-input').value);
     if (!kg || kg <= 0) { toast('填一下体重'); return; }
+    const prev = latestWeight(); // 记录前的最近体重,用于庆祝判断
     const existing = db.weights.find(w => w.date === todayKey);
     if (existing) { existing.kg = kg; existing.ts = Date.now(); }
     else db.weights.push({ date: todayKey, kg, ts: Date.now() });
     save(); scheduleSync(); closeSheet(); toast('体重已记录'); renderStats();
+    if (prev > 0 && kg < prev) celebrate(true); // 比上次轻,来点彩带
   });
 
   /* ---------- settings ---------- */

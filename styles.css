@@ -91,7 +91,7 @@ input{font-family:inherit}
 .row[data-edit]:active{transform:scale(.985)}
 
 /* ---------- AI nutrition ---------- */
-.ai-btn{display:block;width:100%;text-align:center;font-size:14px;font-weight:600;color:var(--teal-ink);background:var(--teal-wash);border-radius:14px;padding:11px;margin:2px 0 12px}
+.ai-btn{display:block;width:100%;text-align:center;font-size:14px;font-weight:600;color:var(--teal-ink);background:transparent;border:1.5px solid var(--teal);border-radius:14px;padding:10px;margin:2px 0 12px}
 .ai-btn:disabled{opacity:.55;cursor:default}
 .ai-card{background:var(--teal-wash);border-radius:14px;padding:12px 14px;margin:0 0 12px;display:flex;flex-direction:column;gap:6px}
 .ai-row{display:flex;justify-content:space-between;align-items:baseline;font-size:14px;gap:10px}
@@ -274,4 +274,10 @@ input{font-family:inherit}
 .mg-mode button.active{background:var(--ink);color:#fff;border-color:var(--ink)}
 .mg-mode-note{font-size:11.5px;color:var(--muted-2)}
 .rpt-text{font-size:14px;line-height:1.75;color:var(--ink);white-space:pre-wrap;margin-bottom:8px}
+
+/* ---------- v31: collapsible nutrient groups ---------- */
+.mg-ghead{display:flex;justify-content:space-between;align-items:center;width:100%;padding:2px 0;text-align:left}
+.mg-gsum{font-size:12px;font-weight:650;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.mg-gsum.done{color:var(--teal-ink)}
+.mg-gsum i{font-style:normal;margin-left:5px;color:var(--muted-2)}
 .primary:disabled{opacity:.45}

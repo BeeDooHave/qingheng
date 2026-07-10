@@ -11,7 +11,7 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
   <link rel="icon" href="favicon-64.png" />
-  <link rel="stylesheet" href="styles.css?v=30" />
+  <link rel="stylesheet" href="styles.css?v=31" />
 </head>
 <body>
 <div id="app">
@@ -182,7 +182,7 @@
     <div class="stat-card">
       <div class="section-head tight">
         <h2>AI 周报</h2>
-        <button class="ghost-btn" id="ai-report-btn">✨ 生成</button>
+        <button class="ghost-btn" id="ai-report-btn">生成</button>
       </div>
       <div id="ai-report"></div>
     </div>
@@ -230,7 +230,7 @@
       <summary>或直接整段输入 ▾</summary>
       <input id="meal-name" type="text" placeholder="如 鸡胸肉150g、西兰花一份" autocomplete="off" />
     </details>
-    <button class="ai-btn" id="ai-estimate">✨ AI 估算营养</button>
+    <button class="ai-btn" id="ai-estimate">AI 估算营养</button>
     <div id="ai-result" hidden></div>
     <div class="field-row">
       <label class="field"><span>热量 (kcal)</span>
@@ -322,7 +322,7 @@
     <label class="field"><span>Gist ID</span>
       <input id="set-gistid" type="text" placeholder="首次同步自动生成" autocomplete="off" /></label>
     <p class="hint">在 GitHub 生成一个只勾 gist 权限的 <b>classic</b> token(fine-grained 不支持 gist)粘到上面,首次点同步会自动建私有 gist。第二台设备填同一个 token,再把这里显示的 Gist ID 粘过去。</p>
-    <button class="text-btn" id="sync-now">☁️ 立即同步</button>
+    <button class="text-btn" id="sync-now">立即同步</button>
     <p class="hint" id="sync-status">从未同步</p>
 
     <button class="text-btn danger" id="export-data">导出数据备份</button>
@@ -335,14 +335,14 @@
       <p class="hint">覆盖导入会直接替换本机数据并推到云端;但其他设备本地的旧记录在它下次同步时仍会合并回来。</p>
       <button class="text-btn" id="import-cancel">取消导入</button>
     </div>
-    <button class="text-btn" id="force-refresh">🔄 强制刷新(拿最新版)</button>
-    <button class="text-btn" data-open="debug">🐞 诊断信息</button>
+    <button class="text-btn" id="force-refresh">强制刷新(拿最新版)</button>
+    <button class="text-btn" data-open="debug">诊断信息</button>
     <button class="text-btn sheet-cancel">取消</button>
-    <p class="hint" id="app-version" style="text-align:center;opacity:.55">轻衡 v30</p>
+    <p class="hint" id="app-version" style="text-align:center;opacity:.55">轻衡 v31</p>
   </div>
 
 </div>
 <div id="toast" class="toast" hidden></div>
-<script src="app.js?v=30"></script>
+<script src="app.js?v=31"></script>
 </body>
 </html>

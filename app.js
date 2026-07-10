@@ -270,6 +270,7 @@
     return out.sort((a, b) => b.v - a.v);
   }
   let mgMode = 'day'; // 'day' 当日 | 'avg7' 近7天平均
+  const mgGrpOpen = { 0: true }; // 组折叠状态:默认只展开三大营养素
   function progressHtml(dk) {
     const avg = mgMode === 'avg7' ? nutritionAvg7(dk) : null;
     const got = avg ? avg.got : nutritionOn(dk);
@@ -279,18 +280,23 @@
       ${avg ? `<span class="mg-mode-note">${avg.days ? '有记录的 ' + avg.days + ' 天平均' : '近7天没有记录'}</span>` : ''}
     </div>`;
     const groups = [
-      { title: '🔥 三大营养素', note: '目标据热量目标 / 最近体重推算', items: macroTargets() },
-      { title: '🫐 抗氧化植物化合物', note: '软参考目标 · AI 粗估,仅看趋势', items: MICROS.filter(m => m.grp === 'phyto') },
-      { title: '🍊 抗氧化维生素', note: '男性 RDA', items: MICROS.filter(m => m.grp === 'vit') },
-      { title: '⚙️ 矿物质', note: '男性 RDA / AI', items: MICROS.filter(m => m.grp === 'min') }
+      { title: '三大营养素', note: '目标据热量目标 / 最近体重推算', items: macroTargets() },
+      { title: '抗氧化植物化合物', note: '软参考目标 · AI 粗估,仅看趋势', items: MICROS.filter(m => m.grp === 'phyto') },
+      { title: '抗氧化维生素', note: '男性 RDA', items: MICROS.filter(m => m.grp === 'vit') },
+      { title: '矿物质', note: '男性 RDA / AI', items: MICROS.filter(m => m.grp === 'min') }
     ];
-    return toggle + groups.map(g => `
-      <div class="mg-group">
-        <p class="mg-gtitle">${esc(g.title)}</p>
-        <p class="mg-gnote">${esc(g.note)}</p>
-        ${g.items.map(it => progRow(it, got[it.k] || 0)).join('')}
-      </div>`).join('') +
-      `<p class="mg-foot">💡 点任意营养素可展开看是哪几餐贡献的。进度只统计用 ✨AI 估算过的餐(手动记的餐仅计蛋白/热量)。想把旧餐算进来:编辑它 → 再点一次「AI 估算」即可。目标参考 NIH DRI(统一男性值)与相关研究;植物化合物为软目标。仅供参考,非医疗建议。</p>`;
+    return toggle + groups.map((g, gi) => {
+      const doneN = g.items.filter(it => Number(it.t) > 0 && (got[it.k] || 0) >= Number(it.t)).length;
+      const openG = !!mgGrpOpen[gi];
+      return `<div class="mg-group">
+        <button class="mg-ghead" data-mggrp="${gi}">
+          <span class="mg-gtitle">${esc(g.title)}</span>
+          <span class="mg-gsum${doneN === g.items.length ? ' done' : ''}">${doneN}/${g.items.length} 达标<i>${openG ? '▾' : '▸'}</i></span>
+        </button>
+        ${openG ? `<p class="mg-gnote">${esc(g.note)}</p>` + g.items.map(it => progRow(it, got[it.k] || 0)).join('') : ''}
+      </div>`;
+    }).join('') +
+      `<p class="mg-foot">点组名展开明细,点营养素看是哪几餐贡献的。进度只统计用 AI 估算过的餐(手动记的餐仅计蛋白/热量);旧餐想算进来:编辑它 → 再点一次「AI 估算」。目标参考 NIH DRI(统一男性值),植物化合物为软目标。仅供参考,非医疗建议。</p>`;
   }
   let mgOpen = true, mgOpenD = true;
   function renderNutritionProgress() {
@@ -303,11 +309,24 @@
   }
 
   /* ---------- row templates ---------- */
+  function mealFoods(m) {
+    const items = m.nutrients && Array.isArray(m.nutrients.items) ? m.nutrients.items : null;
+    return items && items.length
+      ? items.map(it => (it.name || '').trim()).filter(Boolean)
+      : (m.name || '').split(/[、,，]/).map(p => splitNameAmount(p.trim()).name).filter(Boolean);
+  }
   function rowMeal(m, del) {
+    // 标题:前 3 个食物名;副标题:餐型(仅未分组的今天页)· n 样食物 · 蛋白
+    const names = mealFoods(m);
+    const title = names.length ? names.slice(0, 3).join('、') + (names.length > 3 ? ' 等' : '') : (m.name || m.type);
+    const bits = [];
+    if (!del) bits.push(m.type); // 饮食页已按餐型分组,不重复
+    if (names.length > 1) bits.push(names.length + ' 样食物');
+    if (m.protein) bits.push('蛋白 ' + m.protein + 'g');
     return `<div class="row" data-edit="meal" data-id="${m.id}">
       <div class="r-icon i-teal">${mealEmoji(m.type)}</div>
-      <div class="r-body"><p class="r-title">${esc(m.name || m.type)}</p>
-        <p class="r-sub">${m.type}${m.protein ? ' · 蛋白 ' + m.protein + 'g' : ''}</p></div>
+      <div class="r-body"><p class="r-title">${esc(title)}</p>
+        <p class="r-sub">${esc(bits.join(' · ') || m.type)}</p></div>
       <p class="r-val">${m.kcal || 0}<small>kcal</small></p>
       ${del ? `<button class="r-del" data-del="meal" data-id="${m.id}">✕</button>` : ''}
     </div>`;
@@ -431,7 +450,10 @@
   }
 
   function energyChart(days) {
-    const ins = days.map(intakeOn), outs = days.map(outputOn);
+    // 没有任何记录的天不画柱(否则每天都有一根纯 BMR 的消耗柱,全是噪声)
+    const logged = days.map(k => mealsOn(k).length > 0 || workoutsOn(k).length > 0);
+    const ins = days.map((k, i) => logged[i] ? intakeOn(k) : 0);
+    const outs = days.map((k, i) => logged[i] ? outputOn(k) : 0);
     const max = Math.max(...ins, ...outs, 1);
     const W = 320, H = 140, padB = 20, padT = 8;
     const bw = 9, gap = 3;
@@ -439,11 +461,15 @@
     let bars = '';
     days.forEach((k, i) => {
       const cx = i * slot + slot / 2;
-      const hi = ins[i] / max * (H - padB - padT);
-      const ho = outs[i] / max * (H - padB - padT);
       const base = H - padB;
-      bars += `<rect x="${cx - bw - gap / 2}" y="${(base - hi).toFixed(1)}" width="${bw}" height="${hi.toFixed(1)}" rx="3" fill="#0fae9c"/>`;
-      bars += `<rect x="${cx + gap / 2}" y="${(base - ho).toFixed(1)}" width="${bw}" height="${ho.toFixed(1)}" rx="3" fill="#ff6a45"/>`;
+      if (logged[i]) {
+        const hi = ins[i] / max * (H - padB - padT);
+        const ho = outs[i] / max * (H - padB - padT);
+        bars += `<rect x="${cx - bw - gap / 2}" y="${(base - hi).toFixed(1)}" width="${bw}" height="${hi.toFixed(1)}" rx="3" fill="#0fae9c"/>`;
+        bars += `<rect x="${cx + gap / 2}" y="${(base - ho).toFixed(1)}" width="${bw}" height="${ho.toFixed(1)}" rx="3" fill="#ff6a45"/>`;
+      } else {
+        bars += `<rect x="${cx - 8}" y="${base - 2}" width="16" height="2.5" rx="1.2" fill="#e2e0d8"/>`;
+      }
       const wd = WD[fromKey(k).getDay()];
       bars += `<text x="${cx}" y="${H - 6}" font-size="11" fill="#8b8f88" text-anchor="middle" font-weight="600">${k === todayKey ? '今' : wd}</text>`;
     });
@@ -716,7 +742,7 @@
   /* ---------- AI nutrition ---------- */
   let aiNutrients = null;
   let aiStale = false; // 估算后食物又被改动 → 明细不再可信,保存时丢弃
-  const AI_BTN_LABEL = '✨ AI 估算营养';
+  const AI_BTN_LABEL = 'AI 估算营养';
   const AI_PROMPT = `你是营养估算助手。用户给出一餐吃的食物描述(中文,可能含模糊分量如"一碗""一份"),按中国常见份量与标准食物成分数据(USDA / 中国食物成分表)估算,输出 json,不要输出任何其他文字。格式:
 {"items":[{"name":"食物名","amount":"估算的量,如 150g / 1碗(约200g)","kcal":0,"protein":0,"fat":0,"carbs":0,"fiber":0,"micros":{"vitC":0,"vitE":0,"vitA":0,"se":0,"zn":0,"cu":0,"mn":0,"ca":0,"fe":0,"k":0,"anthocyanin":0,"lycopene":0,"lutein":0,"betacarotene":0}}],
 "total":{"kcal":0,"protein":0,"fat":0,"carbs":0,"fiber":0},
@@ -897,7 +923,7 @@
     try { rpt = JSON.parse(localStorage.getItem(RPT_KEY) || 'null'); } catch (e) {}
     box.innerHTML = rpt && rpt.text
       ? `<p class="rpt-text">${esc(rpt.text)}</p><p class="ai-note">AI 生成,仅供参考 · ${new Date(rpt.ts).toLocaleDateString()}</p>`
-      : `<p class="hint">点右上角「✨ 生成」,AI 会点评你最近 7 天的饮食、训练与体重(需 DeepSeek Key)。</p>`;
+      : `<p class="hint">点右上角「生成」,AI 会点评你最近 7 天的饮食、训练与体重(需 DeepSeek Key)。</p>`;
   }
 
   if ($('#ai-report-btn')) $('#ai-report-btn').addEventListener('click', async () => {
@@ -914,7 +940,7 @@
     } catch (err) {
       toast(err.message || '生成失败');
     } finally {
-      btn.disabled = false; btn.textContent = '✨ 生成';
+      btn.disabled = false; btn.textContent = '生成';
     }
   });
 
@@ -989,7 +1015,7 @@
       save(); scheduleSync(); closeSheet(); toast('已更新'); renderAll();
     } else {
       db.workouts.push(Object.assign({ id: uid(), date: sel.training }, wo));
-      save(); scheduleSync(); closeSheet(); toast('动作已记录 💪'); renderAll();
+      save(); scheduleSync(); closeSheet(); toast('动作已记录'); renderAll();
       goto('training');
     }
   });
@@ -1317,6 +1343,8 @@
     }
     const mm = e.target.closest('[data-mgmode]');
     if (mm) { mgMode = mm.dataset.mgmode; renderNutritionProgress(); renderDietProgress(); return; }
+    const gh = e.target.closest('[data-mggrp]');
+    if (gh) { const gi = gh.dataset.mggrp; mgGrpOpen[gi] = !mgGrpOpen[gi]; renderNutritionProgress(); renderDietProgress(); return; }
     const nutItem = e.target.closest('.mg-item[data-nutrient]');
     if (nutItem) {
       const dk = nutItem.closest('#diet-micro') ? sel.diet : sel.today;

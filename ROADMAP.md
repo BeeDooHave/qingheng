@@ -2,28 +2,32 @@
 
 > 给后续实施 agent(或未来会话)的总览。配套文档:`PLAN-ai-nutrition.md`(AI 营养估算,已实施)、`PLAN-sync.md`(多设备同步,待实施)。架构约定见 PLAN-ai-nutrition.md 第 0 节,对所有任务生效。
 
-## 当前状态(2026-07-09)
+## 当前状态(2026-07-10)
 
 | 事项 | 状态 |
 |---|---|
 | 编辑功能(点条目重开 sheet 更新原对象) | ✅ 已完成 |
 | AI 营养估算(DeepSeek v4-flash) | ✅ 已完成,手机+电脑实测通过,**浏览器直连无 CORS 问题** |
-| SW 缓存版本 | 当前 `qingheng-v3`,每次改动 html/js/css 后必须 bump |
+| 多设备同步(Gist + mergeDb + 墓碑) | ✅ 已完成 |
+| 弹层交互修缮(v23–v28) | ✅ 内部可滚、下拉/灰条/取消关闭、背景锁滚、删除撤销带倒计时、AI 估算过期标记 |
+| 数据导入(合并/覆盖) | ✅ 已完成(v29);覆盖导入后直推 gist 不走合并 |
+| 营养进度 当日/近7天平均 切换 | ✅ 已完成(v29);平均只算有记录的天 |
+| AI 周报(原未来展望 2) | ✅ 已完成(v29);报告存 localStorage `qingheng.aireport`,不进 db/同步 |
+| 版本号 | 当前 **v29**。bump 时改四处:`sw.js` CACHE、`index.html` 的版本标签 + `styles.css?v=` + `app.js?v=` |
+| 部署 | 本地 `python3 -m http.server 5173 --bind 0.0.0.0`,手机走局域网,**不需要 push**(见 README) |
 
 ## 待做清单(按此顺序执行)
 
-1. **[实施] 多设备同步** — 按 `PLAN-sync.md`。核心:Gist 存储、mergeDb 合并、墓碑防复活、记录级 ts。
-2. **[实施] 数据导入(原功能 3)** — 设置页导入备份 JSON,校验 meals/workouts/weights/settings 字段;**合并模式复用同步的 mergeDb**,覆盖模式整库替换(保留本地 syncToken/gistId);导入前让用户选合并/覆盖(sheet 内两个按钮,默认合并)。
-3. **[实施] 常用项快捷添加(原功能 2)** — 记一餐/加动作 sheet 顶部加「常用」chips:按最近使用去重取 5–8 个 meal.name / workout.name,点选回填全套表单(kcal/protein 或 cat/sets/duration)。新样式 `.chips/.chip` 横滚胶囊。
-4. **[实施] 动作历史/PR(原功能 4)** — 训练条目行尾加 📈 小按钮(**点行主体=编辑,已占用**),打开 `#sheet-history`:该动作名跨日期的重量走势(复用 `lineChart()`;徒手看总次数、有氧看时长),显示 PR 和最近几次明细。无 db 变更。
-5. **[实施] 体重目标(原功能 5)** — settings 加 `targetWeight`;stats 体重卡片显示「距目标还差 x.x kg」,达标显示庆祝文案。与同步方案的 settings.ts 机制兼容(保存设置刷新 ts 即可)。
+1. **[实施] 常用项快捷添加(原功能 2,范围已缩)** — 食物级 chips 已有;剩:记一餐 sheet 顶部「最近的餐」chips 一键回填全套表单(食物行+kcal+protein+**nutrients 直接复用,不重新估算**);加动作 sheet 的 workout.name chips 回填 cat/sets/duration。
+2. **[实施] 动作历史/PR(原功能 4)** — 训练条目行尾加 📈 小按钮(**点行主体=编辑,已占用**),打开 `#sheet-history`:该动作名跨日期的重量走势(复用 `lineChart()`;徒手看总次数、有氧看时长),显示 PR 和最近几次明细。无 db 变更。
+3. **[实施] 体重目标(原功能 5)** — settings 加 `targetWeight`;stats 体重卡片显示「距目标还差 x.x kg」,达标显示庆祝文案。与同步方案的 settings.ts 机制兼容(保存设置刷新 ts 即可)。
 
 每项完成后:`node --check app.js`、bump SW CACHE、让用户验证后再做下一项。
 
 ## 未来展望(未排期,按价值/成本粗排)
 
 1. **Cloudflare Worker 统一后端**(条件触发):CORS 已实测无问题,此项仅在 Gist 同步方案不满意、或想把 DeepSeek key 移出浏览器(存 Worker 环境变量更安全)时考虑。
-2. **AI 周报/复盘**:每周用 DeepSeek 汇总 7 天饮食+训练+体重,生成一段中文点评(缺口达成率、蛋白摄入、训练频率建议)。数据都在本地,一次调用,成本可忽略。stats 页加卡片。
+2. ~~AI 周报~~(已实施,v29):每周用 DeepSeek 汇总 7 天饮食+训练+体重,生成一段中文点评(缺口达成率、蛋白摄入、训练频率建议)。数据都在本地,一次调用,成本可忽略。stats 页加卡片。
 3. **训练模板**:把某天的一组动作存为模板(如"推日/拉日/腿日"),一键套用到今天。db 加 `templates[]`。
 4. **组间休息计时器**:加动作 sheet 里一个倒计时按钮(60/90/120s),用 Notification API 提醒(PWA 需授权,iOS 上受限,做成页面内提示兜底)。
 5. **拍照识别餐食**:需要多模态模型(DeepSeek 当前 API 为文本;需接视觉模型另算成本)。先观望,文本估算已覆盖主要价值。

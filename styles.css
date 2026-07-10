@@ -266,4 +266,12 @@ input{font-family:inherit}
 .toast{overflow:hidden} /* 让倒计时条贴合胶囊圆角 */
 .toast-timer{position:absolute;left:0;right:0;bottom:0;height:3px;background:#5ad6c6;transform-origin:left;animation:toastCount 5s linear forwards}
 @keyframes toastCount{from{transform:scaleX(1)}to{transform:scaleX(0)}}
+
+/* ---------- v29: import / 7-day avg toggle / AI report ---------- */
+.import-confirm{margin:8px 0;padding:12px;border:1.5px dashed var(--muted-2);border-radius:14px}
+.mg-mode{display:flex;gap:6px;align-items:center;margin:0 0 12px}
+.mg-mode button{padding:6px 13px;border-radius:999px;border:1px solid var(--line);font-size:12.5px;font-weight:650;color:var(--muted);background:var(--card)}
+.mg-mode button.active{background:var(--ink);color:#fff;border-color:var(--ink)}
+.mg-mode-note{font-size:11.5px;color:var(--muted-2)}
+.rpt-text{font-size:14px;line-height:1.75;color:var(--ink);white-space:pre-wrap;margin-bottom:8px}
 .primary:disabled{opacity:.45}

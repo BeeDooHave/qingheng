@@ -11,7 +11,7 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
   <link rel="icon" href="favicon-64.png" />
-  <link rel="stylesheet" href="styles.css?v=28" />
+  <link rel="stylesheet" href="styles.css?v=29" />
 </head>
 <body>
 <div id="app">
@@ -178,6 +178,14 @@
         <div><p class="wk-num" id="wk-logged">0</p><p class="wk-cap">记录天数</p></div>
       </div>
     </div>
+
+    <div class="stat-card">
+      <div class="section-head tight">
+        <h2>AI 周报</h2>
+        <button class="ghost-btn" id="ai-report-btn">✨ 生成</button>
+      </div>
+      <div id="ai-report"></div>
+    </div>
     <div class="bottom-space"></div>
   </section>
 
@@ -318,14 +326,23 @@
     <p class="hint" id="sync-status">从未同步</p>
 
     <button class="text-btn danger" id="export-data">导出数据备份</button>
+    <button class="text-btn" id="import-data">导入数据备份</button>
+    <input type="file" id="import-file" accept="application/json,.json" hidden />
+    <div id="import-confirm" class="import-confirm" hidden>
+      <p class="hint" id="import-info"></p>
+      <button class="primary accent-teal" id="import-merge">合并导入(推荐)</button>
+      <button class="text-btn danger" id="import-replace">覆盖导入(替换现有数据)</button>
+      <p class="hint">覆盖导入会直接替换本机数据并推到云端;但其他设备本地的旧记录在它下次同步时仍会合并回来。</p>
+      <button class="text-btn" id="import-cancel">取消导入</button>
+    </div>
     <button class="text-btn" id="force-refresh">🔄 强制刷新(拿最新版)</button>
     <button class="text-btn" data-open="debug">🐞 诊断信息</button>
     <button class="text-btn sheet-cancel">取消</button>
-    <p class="hint" id="app-version" style="text-align:center;opacity:.55">轻衡 v28</p>
+    <p class="hint" id="app-version" style="text-align:center;opacity:.55">轻衡 v29</p>
   </div>
 
 </div>
 <div id="toast" class="toast" hidden></div>
-<script src="app.js?v=28"></script>
+<script src="app.js?v=29"></script>
 </body>
 </html>

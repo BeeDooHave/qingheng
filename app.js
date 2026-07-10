@@ -206,6 +206,20 @@
     return acc;
   }
 
+  // 近 7 天滚动平均(只算有饮食记录的天,避免没记的日子稀释平均值)
+  function nutritionAvg7(dk) {
+    const acc = {}; let n = 0;
+    for (let i = 0; i < 7; i++) {
+      const day = shiftKey(dk, -i);
+      if (!mealsOn(day).length) continue;
+      n++;
+      const g = nutritionOn(day);
+      Object.keys(g).forEach(k => acc[k] = (acc[k] || 0) + g[k]);
+    }
+    if (n) Object.keys(acc).forEach(k => acc[k] /= n);
+    return { got: acc, days: n };
+  }
+
   const fmtN = v => { const n = Number(v) || 0; return n >= 100 ? Math.round(n) : n % 1 ? Math.round(n * 10) / 10 : n; };
   function progRow(item, got) {
     const tgt = Number(item.t) || 0;
@@ -255,15 +269,22 @@
     });
     return out.sort((a, b) => b.v - a.v);
   }
+  let mgMode = 'day'; // 'day' 当日 | 'avg7' 近7天平均
   function progressHtml(dk) {
-    const got = nutritionOn(dk);
+    const avg = mgMode === 'avg7' ? nutritionAvg7(dk) : null;
+    const got = avg ? avg.got : nutritionOn(dk);
+    const toggle = `<div class="mg-mode">
+      <button data-mgmode="day"${mgMode === 'day' ? ' class="active"' : ''}>当日</button>
+      <button data-mgmode="avg7"${mgMode === 'avg7' ? ' class="active"' : ''}>近7天</button>
+      ${avg ? `<span class="mg-mode-note">${avg.days ? '有记录的 ' + avg.days + ' 天平均' : '近7天没有记录'}</span>` : ''}
+    </div>`;
     const groups = [
       { title: '🔥 三大营养素', note: '目标据热量目标 / 最近体重推算', items: macroTargets() },
       { title: '🫐 抗氧化植物化合物', note: '软参考目标 · AI 粗估,仅看趋势', items: MICROS.filter(m => m.grp === 'phyto') },
       { title: '🍊 抗氧化维生素', note: '男性 RDA', items: MICROS.filter(m => m.grp === 'vit') },
       { title: '⚙️ 矿物质', note: '男性 RDA / AI', items: MICROS.filter(m => m.grp === 'min') }
     ];
-    return groups.map(g => `
+    return toggle + groups.map(g => `
       <div class="mg-group">
         <p class="mg-gtitle">${esc(g.title)}</p>
         <p class="mg-gnote">${esc(g.note)}</p>
@@ -386,6 +407,7 @@
     $('#wk-deficit').textContent = deficit;
     $('#wk-trained').textContent = trained;
     $('#wk-logged').textContent = logged;
+    renderReport();
   }
 
   /* ---------- SVG charts ---------- */
@@ -807,6 +829,95 @@
     }
   });
 
+  /* ---------- AI weekly report ---------- */
+  const RPT_KEY = 'qingheng.aireport'; // 单独存,不进 db(mergeDb/gist 都不用管它)
+  const RPT_PROMPT = '你是一位务实的减脂健身教练。根据用户过去7天的记录数据(JSON),写一段中文周报点评,150-250字,口吻友好直接,称呼用"你"。必须覆盖:1) 热量缺口整体做得如何(对照 target_kcal 与每日 kcal_in/kcal_out);2) 蛋白质摄入够不够(对照 protein_target_g);3) micros_below_70pct 里明显的微量营养缺口,给 1-2 个具体食物建议;4) 训练频率与体重趋势各一句话。写成一到两段自然的话,不要列表,不要出现 JSON 字段名,不要编造数据里没有的内容。';
+
+  function weekData() {
+    const days = [];
+    for (let i = 6; i >= 0; i--) {
+      const dk = shiftKey(todayKey, -i);
+      const meals = mealsOn(dk), wos = workoutsOn(dk);
+      if (!meals.length && !wos.length) continue;
+      days.push({
+        date: dk,
+        kcal_in: intakeOn(dk), kcal_out: outputOn(dk), protein_g: Math.round(proteinOn(dk)),
+        meals: meals.map(m => m.name || m.type).join(';').slice(0, 150),
+        workouts: wos.map(w => (w.name || w.cat) + (w.sets ? ' ' + w.sets.length + '组' : '')).join(';').slice(0, 100)
+      });
+    }
+    const avg = nutritionAvg7(todayKey);
+    const gaps = MICROS
+      .map(m => ({ name: m.n, pct: m.t > 0 ? Math.round((avg.got[m.k] || 0) / m.t * 100) : 0, sources: m.src }))
+      .filter(x => x.pct < 70).slice(0, 6);
+    return {
+      target_kcal: Number(db.settings.target) || 1600,
+      protein_target_g: macroTargets()[0].t,
+      days,
+      micros_below_70pct: gaps,
+      weights_last14d: db.weights.slice().sort((a, b) => a.date < b.date ? -1 : 1).slice(-14).map(w => ({ d: w.date, kg: w.kg }))
+    };
+  }
+
+  async function genReport(data) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 45000);
+    try {
+      const res = await fetch('https://api.deepseek.com/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + db.settings.dsKey },
+        signal: ctrl.signal,
+        body: JSON.stringify({
+          model: 'deepseek-v4-flash',
+          thinking: { type: 'disabled' },
+          max_tokens: 700,
+          temperature: 0.6,
+          messages: [
+            { role: 'system', content: RPT_PROMPT },
+            { role: 'user', content: JSON.stringify(data) }
+          ]
+        })
+      });
+      if (res.status === 401) throw new Error('API Key 无效,检查设置里的 Key');
+      if (!res.ok) throw new Error('生成失败 (' + res.status + '),稍后再试');
+      const json = await res.json();
+      const text = json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content;
+      if (!text || !text.trim()) throw new Error('返回为空,再试一次');
+      return text.trim();
+    } catch (err) {
+      if (err.name === 'AbortError') throw new Error('请求超时,稍后再试');
+      if (err instanceof TypeError) throw new Error('网络错误,稍后再试');
+      throw err;
+    } finally { clearTimeout(timer); }
+  }
+
+  function renderReport() {
+    const box = $('#ai-report'); if (!box) return;
+    let rpt = null;
+    try { rpt = JSON.parse(localStorage.getItem(RPT_KEY) || 'null'); } catch (e) {}
+    box.innerHTML = rpt && rpt.text
+      ? `<p class="rpt-text">${esc(rpt.text)}</p><p class="ai-note">AI 生成,仅供参考 · ${new Date(rpt.ts).toLocaleDateString()}</p>`
+      : `<p class="hint">点右上角「✨ 生成」,AI 会点评你最近 7 天的饮食、训练与体重(需 DeepSeek Key)。</p>`;
+  }
+
+  $('#ai-report-btn').addEventListener('click', async () => {
+    if (!db.settings.dsKey) { toast('先在设置里填 DeepSeek API Key'); return; }
+    if (!navigator.onLine) { toast('离线状态无法生成'); return; }
+    const data = weekData();
+    if (!data.days.length) { toast('最近 7 天没有记录,先记几天再来'); return; }
+    const btn = $('#ai-report-btn');
+    btn.disabled = true; btn.textContent = '生成中…';
+    try {
+      const text = await genReport(data);
+      try { localStorage.setItem(RPT_KEY, JSON.stringify({ ts: Date.now(), text })); } catch (e) {}
+      renderReport();
+    } catch (err) {
+      toast(err.message || '生成失败');
+    } finally {
+      btn.disabled = false; btn.textContent = '✨ 生成';
+    }
+  });
+
   /* ---------- workout sheet ---------- */
   let woCat = '力量';
   function resetWorkoutSheet() {
@@ -926,6 +1037,61 @@
     a.download = `轻衡备份-${todayKey}.json`;
     a.click(); URL.revokeObjectURL(a.href);
   });
+
+  /* ---------- data import (merge via mergeDb / replace) ---------- */
+  let importDb = null;
+  $('#import-data').addEventListener('click', () => $('#import-file').click());
+  $('#import-file').addEventListener('change', e => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = ''; // 允许再次选同一文件
+    if (!f) return;
+    const rd = new FileReader();
+    rd.onload = () => {
+      try {
+        const d = JSON.parse(rd.result);
+        if (!d || typeof d !== 'object' || Array.isArray(d)) throw 0;
+        const hasData = ['meals', 'workouts', 'weights'].some(k => Array.isArray(d[k]) && d[k].length);
+        if (!hasData) throw 0;
+        ['meals', 'workouts'].forEach(k => {
+          if (d[k] && !(Array.isArray(d[k]) && d[k].every(r => r && r.id && r.date))) throw 0;
+        });
+        importDb = d;
+        $('#import-info').textContent = `已读取备份:${(d.meals || []).length} 餐 · ${(d.workouts || []).length} 动作 · ${(d.weights || []).length} 条体重。选择导入方式:`;
+        $('#import-confirm').hidden = false;
+      } catch (err) {
+        importDb = null;
+        toast('文件格式不对,需要「导出数据备份」生成的 JSON');
+      }
+    };
+    rd.onerror = () => toast('读取文件失败');
+    rd.readAsText(f);
+  });
+  function finishImport(newDb, msg) {
+    importDb = null; $('#import-confirm').hidden = true;
+    db = newDb; save(); renderAll(); fillSettings(); toast(msg);
+    dlog('import', msg + ` meals=${db.meals.length} workouts=${db.workouts.length}`);
+  }
+  $('#import-merge').addEventListener('click', () => {
+    if (!importDb) return;
+    finishImport(mergeDb(db, importDb), '已合并导入');
+    scheduleSync();
+  });
+  $('#import-replace').addEventListener('click', async () => {
+    if (!importDb) return;
+    const s = db.settings;
+    const nd = Object.assign({}, JSON.parse(JSON.stringify(defaults)), importDb);
+    nd.settings = Object.assign({}, defaults.settings, importDb.settings || {},
+      { syncToken: s.syncToken, gistId: s.gistId, dsKey: s.dsKey }); // 本地密钥不被备份覆盖
+    nd.tombstones = Object.assign({}, importDb.tombstones || {});
+    nd.syncedAt = 0;
+    finishImport(nd, '已覆盖导入');
+    // 覆盖后直接推云端(不走合并,否则云端旧数据会被合并回来)
+    if (db.settings.syncToken && db.settings.gistId) {
+      try { await gistPush(db.settings.gistId, db); db.syncedAt = Date.now(); save(); updateSyncStatus(); }
+      catch (err) { dlog('import', 'push-after-replace failed: ' + (err && err.message)); }
+    }
+  });
+  $('#import-cancel').addEventListener('click', () => { importDb = null; $('#import-confirm').hidden = true; });
 
   /* ---------- multi-device sync (private GitHub Gist) ---------- */
 
@@ -1145,6 +1311,8 @@
       const btn = $('#mg-toggle-d'); if (btn) btn.textContent = mgOpenD ? '收起 ▾' : '展开 ▸';
       return;
     }
+    const mm = e.target.closest('[data-mgmode]');
+    if (mm) { mgMode = mm.dataset.mgmode; renderNutritionProgress(); renderDietProgress(); return; }
     const nutItem = e.target.closest('.mg-item[data-nutrient]');
     if (nutItem) {
       const dk = nutItem.closest('#diet-micro') ? sel.diet : sel.today;

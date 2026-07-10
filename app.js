@@ -291,12 +291,41 @@
     const m = MICROS.find(x => x.k === key);
     return m && m.t ? (got[key] || 0) / m.t : 0;
   }
+  let sysTipOpen = false;
+  function sysAvg(got, s) {
+    return s.nut.reduce((a, k) => a + Math.min(sysPct(got, k), 1.5), 0) / s.nut.length;
+  }
+  // 没点亮的系统 → 汇总其欠缺营养素的来源食物,一物多补的排前面
+  function sysTipsHtml(got) {
+    const unlit = SYSTEMS.filter(s => sysAvg(got, s) < 0.7);
+    if (!unlit.length) return '';
+    const foodMap = {}; // 食物 -> 覆盖的系统名
+    unlit.forEach(s => s.nut.forEach(k => {
+      if (sysPct(got, k) >= 1) return; // 该营养素本身已够
+      const src = k === 'protein' ? '肉·蛋·奶·豆·鱼虾' : (MICROS.find(x => x.k === k) || {}).src || '';
+      src.split('·').forEach(f => {
+        f = f.trim(); if (!f) return;
+        if (!foodMap[f]) foodMap[f] = [];
+        if (foodMap[f].indexOf(s.n) < 0) foodMap[f].push(s.n);
+      });
+    }));
+    const ranked = Object.keys(foodMap)
+      .sort((a, b) => foodMap[b].length - foodMap[a].length)
+      .slice(0, 5);
+    const btn = `<button class="sys-tip-btn" data-systips>补什么 ${sysTipOpen ? '▾' : '▸'}</button>`;
+    const box = sysTipOpen
+      ? `<div class="sys-tips">还差 <b>${unlit.map(s => s.n).join('、')}</b>,顺手吃点:${ranked.map(f =>
+          `<span class="sys-food">${esc(f)}<small>${foodMap[f].join('+')}</small></span>`).join('')}</div>`
+      : '';
+    return { btn, box };
+  }
   function sysRowHtml(got) {
     const items = SYSTEMS.map((s, si) => {
-      const pct = s.nut.reduce((a, k) => a + Math.min(sysPct(got, k), 1.5), 0) / s.nut.length;
-      return `<button class="sys-it${pct >= 0.7 ? ' lit' : ''}" data-sys="${si}">${SYS_ICONS[s.icon]}<span>${s.n}</span></button>`;
+      return `<button class="sys-it${sysAvg(got, s) >= 0.7 ? ' lit' : ''}" data-sys="${si}">${SYS_ICONS[s.icon]}<span>${s.n}</span></button>`;
     }).join('');
-    return `<div class="sys-row">${items}</div><p class="sys-note">吃够对应营养素就点亮 · 趣味参考</p>`;
+    const tips = sysTipsHtml(got) || { btn: '', box: '' };
+    return `<div class="sys-row">${items}</div>
+      <div class="sys-note">吃够对应营养素就点亮 · 趣味参考${tips.btn}</div>${tips.box}`;
   }
   function progressHtml(dk) {
     const avg = mgMode === 'avg7' ? nutritionAvg7(dk) : null;
@@ -1163,7 +1192,7 @@
       .slice(0, 6);
     return out.length ? out : null;
   }
-  const WO_PROMPT = '你是运动能量消耗估算助手。根据动作名称、类别、组数/次数/重量或时长/距离,以及体重(kg,0 表示未知按 70 算),用 MET 方法估算这一条训练记录的总消耗,并给出主要发力肌群(2-4 个),输出 json:{"kcal":0,"note":"一句话假设说明","muscles":[{"m":"肌群slug","i":0到1的发力占比}]},不要输出任何其他文字。m 只能取:trapezius,upper-back,lower-back,chest,biceps,triceps,forearm,back-deltoids,front-deltoids,abs,obliques,adductor,abductors,hamstring,quadriceps,calves,gluteal,neck。力量/徒手按实际做功时间估算(每组约 30-45 秒,组间休息不计入),不要按整段训练时长高估;kcal 取整数。无法识别为运动时返回 {"error":"原因"}。';
+  const WO_PROMPT = '你是运动能量消耗估算助手。根据动作名称、类别、组数/次数/重量或时长/距离,以及体重(kg,0 表示未知按 70 算),用 MET 方法估算这一条训练记录的总消耗,并给出主要发力肌群(2-4 个),输出 json:{"kcal":0,"note":"一句话假设说明","muscles":[{"m":"肌群slug","i":0到1的发力占比}]},不要输出任何其他文字。m 只能取:trapezius,upper-back,lower-back,chest,biceps,triceps,forearm,back-deltoids,front-deltoids,abs,obliques,adductor,abductors,hamstring,quadriceps,calves,gluteal,neck。力量/徒手按「整个动作段」估算:每组约 40 秒做组(MET 按动作强度 3.5-6)加 60-90 秒组间恢复(MET≈2),即 组数×(做组+休息)全周期,不要只算做组秒数,也不要按整次训练时长高估。sets 里的 kg 是器械标示重量:哑铃/单手器械按单只算,若动作通常双手各持一只则总负重×2;杠铃/固定器械为总重;按动作名判断并在 note 里写明假设。kcal 取整数。无法识别为运动时返回 {"error":"原因"}。';
   if ($('#wo-ai')) $('#wo-ai').addEventListener('click', async () => {
     const name = $('#wo-name').value.trim();
     if (!name) { toast('先填动作名称'); return; }
@@ -1581,6 +1610,7 @@
     if (mm) { mgMode = mm.dataset.mgmode; renderNutritionProgress(); renderDietProgress(); return; }
     const gh = e.target.closest('[data-mggrp]');
     if (gh) { const gi = gh.dataset.mggrp; mgGrpOpen[gi] = !mgGrpOpen[gi]; renderNutritionProgress(); renderDietProgress(); return; }
+    if (e.target.closest('[data-systips]')) { sysTipOpen = !sysTipOpen; renderNutritionProgress(); renderDietProgress(); return; }
     const sy = e.target.closest('[data-sys]');
     if (sy) {
       const dk = sy.closest('#diet-micro') ? sel.diet : sel.today;

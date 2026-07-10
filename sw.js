@@ -1,5 +1,5 @@
 // 轻衡 Service Worker — app-shell offline caching
-const CACHE = 'qingheng-v34';
+const CACHE = 'qingheng-v35';
 const ASSETS = [
   './',
   './index.html',
@@ -11,7 +11,8 @@ const ASSETS = [
   './apple-touch-icon.png',
   './fonts/qh-num-500.woff2',
   './fonts/qh-num-700.woff2',
-  './vendor/confetti.min.js'
+  './vendor/confetti.min.js',
+  './vendor/body-highlighter.esm.js'
 ];
 
 self.addEventListener('install', (e) => {

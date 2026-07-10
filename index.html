@@ -11,7 +11,7 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
   <link rel="icon" href="favicon-64.png" />
-  <link rel="stylesheet" href="styles.css?v=34" />
+  <link rel="stylesheet" href="styles.css?v=35" />
 </head>
 <body>
 <div id="app">
@@ -135,6 +135,14 @@
         <div><p class="pc-big"><span id="train-vol">0</span> <span class="pc-small">kg · 总容量</span></p>
           <p class="pc-cap"><span id="train-count">0</span> 个动作 · 约消耗 <span id="train-burn">0</span> kcal</p></div>
       </div>
+    </div>
+
+    <div class="stat-card" id="muscle-card" hidden>
+      <div class="section-head tight">
+        <h2>训练部位</h2>
+        <span class="sys-note">按当天强度上色 · AI 估计</span>
+      </div>
+      <div class="muscle-map"><div id="muscle-front"></div><div id="muscle-back"></div></div>
     </div>
 
     <div id="training-list" class="stack"></div>
@@ -341,12 +349,13 @@
     <button class="text-btn" id="force-refresh">强制刷新(拿最新版)</button>
     <button class="text-btn" data-open="debug">诊断信息</button>
     <button class="text-btn sheet-cancel">取消</button>
-    <p class="hint" id="app-version" style="text-align:center;opacity:.55">轻衡 v34</p>
+    <p class="hint" id="app-version" style="text-align:center;opacity:.55">轻衡 v35</p>
   </div>
 
 </div>
 <div id="toast" class="toast" hidden></div>
 <script src="vendor/confetti.min.js" defer></script>
-<script src="app.js?v=34"></script>
+<script type="module">import * as BH from './vendor/body-highlighter.esm.js'; window.BodyHighlighter = BH;</script>
+<script src="app.js?v=35"></script>
 </body>
 </html>

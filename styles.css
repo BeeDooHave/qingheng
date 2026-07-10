@@ -280,6 +280,15 @@ input{font-family:inherit}
 .mg-mode-note{font-size:11.5px;color:var(--muted-2)}
 .rpt-text{font-size:14px;line-height:1.75;color:var(--ink);white-space:pre-wrap;margin-bottom:8px}
 
+/* ---------- v35: muscle heat map & six-system row ---------- */
+.muscle-map{display:flex;justify-content:center;gap:14px;padding:4px 0 2px}
+.muscle-map svg path{cursor:pointer}
+.sys-row{display:flex;gap:7px}
+.sys-it{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:9px 0 7px;border-radius:13px;background:var(--card);color:var(--muted-2);border:1px solid var(--line)}
+.sys-it.lit{color:var(--teal-ink);border-color:var(--teal);background:var(--teal-wash)}
+.sys-it span{font-size:11px;font-weight:650}
+.sys-note{font-size:10.5px;color:var(--muted-2);margin:6px 2px 12px;text-align:right}
+
 /* ---------- v32: empty-state art & icon buttons ---------- */
 .empty-art{display:block;margin:4px auto 10px}
 .r-del,.set-del,.fr-del{display:inline-flex;align-items:center;justify-content:center}

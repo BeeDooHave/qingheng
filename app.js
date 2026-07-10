@@ -268,6 +268,36 @@
   }
   let mgMode = 'day'; // 'day' 当日 | 'avg7' 近7天平均
   const mgGrpOpen = { 0: true }; // 组折叠状态:默认只展开三大营养素
+
+  /* ---------- 六系统点亮(趣味参考) ---------- */
+  const SYS_ICONS = {
+    eye: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>',
+    bone: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 10c.7-.7 1.69-1 2.5-.5a2.5 2.5 0 1 0-3-3c.5.81.2 1.8-.5 2.5l-9 9c-.7.7-1.69 1-2.5.5a2.5 2.5 0 1 0 3 3c-.5-.81-.2-1.8.5-2.5Z"/></svg>',
+    drop: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2s6 6.5 6 11a6 6 0 0 1-12 0C6 8.5 12 2 12 2z"/></svg>',
+    shield: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-3 8-10V5l-8-3-8 3v7c0 7 8 10 8 10z"/></svg>',
+    spark: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.7 1.8L21.5 17.5l-1.8.7L19 20l-.7-1.8-1.8-.7 1.8-.7z"/></svg>',
+    muscle: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5l11 11"/><path d="M21 21l-1.5-1.5"/><path d="M3 3l1.5 1.5"/><path d="M18 22l4-4"/><path d="M2 6l4-4"/><path d="M3 10l7-7"/><path d="M14 21l7-7"/></svg>'
+  };
+  const SYSTEMS = [
+    { n: '眼', icon: 'eye', nut: ['lutein', 'vitA'] },
+    { n: '骨', icon: 'bone', nut: ['ca'] },
+    { n: '血', icon: 'drop', nut: ['fe'] },
+    { n: '免疫', icon: 'shield', nut: ['vitC', 'zn'] },
+    { n: '皮肤', icon: 'spark', nut: ['vitE', 'anthocyanin'] },
+    { n: '肌肉', icon: 'muscle', nut: ['protein'] }
+  ];
+  function sysPct(got, key) {
+    if (key === 'protein') { const t = macroTargets()[0].t; return t ? (got.protein || 0) / t : 0; }
+    const m = MICROS.find(x => x.k === key);
+    return m && m.t ? (got[key] || 0) / m.t : 0;
+  }
+  function sysRowHtml(got) {
+    const items = SYSTEMS.map((s, si) => {
+      const pct = s.nut.reduce((a, k) => a + Math.min(sysPct(got, k), 1.5), 0) / s.nut.length;
+      return `<button class="sys-it${pct >= 0.7 ? ' lit' : ''}" data-sys="${si}">${SYS_ICONS[s.icon]}<span>${s.n}</span></button>`;
+    }).join('');
+    return `<div class="sys-row">${items}</div><p class="sys-note">吃够对应营养素就点亮 · 趣味参考</p>`;
+  }
   function progressHtml(dk) {
     const avg = mgMode === 'avg7' ? nutritionAvg7(dk) : null;
     const got = avg ? avg.got : nutritionOn(dk);
@@ -282,7 +312,7 @@
       { title: '抗氧化维生素', note: '男性 RDA', items: MICROS.filter(m => m.grp === 'vit') },
       { title: '矿物质', note: '男性 RDA / AI', items: MICROS.filter(m => m.grp === 'min') }
     ];
-    return toggle + groups.map((g, gi) => {
+    return toggle + sysRowHtml(got) + groups.map((g, gi) => {
       const doneN = g.items.filter(it => Number(it.t) > 0 && (got[it.k] || 0) >= Number(it.t)).length;
       const openG = !!mgGrpOpen[gi];
       return `<div class="mg-group">
@@ -431,6 +461,7 @@
     $('#training-list').innerHTML = wos.length
       ? wos.map(w => rowWorkout(w, true)).join('')
       : `<div class="empty">${emptyArt('training')}这天还没有训练记录<br>点下面「加动作」开始</div>`;
+    renderMuscleMap(k);
   }
 
   /* ---------- STATS ---------- */
@@ -1052,6 +1083,7 @@
       if (!wo.sets.length) { toast('至少填一组次数'); return; }
       if (woAiBurn) wo.burn = woAiBurn; // 力量/徒手的 AI 估算消耗
     }
+    if (woAiMuscles) wo.muscles = woAiMuscles; // 各类别通用:AI 给的发力肌群
     if (editing.workout) {
       const w = db.workouts.find(x => x.id === editing.workout);
       if (w) {
@@ -1097,9 +1129,9 @@
     } finally { clearTimeout(timer); }
   }
 
-  let woAiBurn = null;
+  let woAiBurn = null, woAiMuscles = null;
   function resetWoAi() {
-    woAiBurn = null;
+    woAiBurn = null; woAiMuscles = null;
     const r = $('#wo-ai-result'); if (r) { r.hidden = true; r.textContent = ''; }
     const b = $('#wo-ai'); if (b) { b.disabled = false; b.textContent = 'AI 估算消耗'; }
   }
@@ -1108,7 +1140,30 @@
     r.textContent = `≈ ${kcal} kcal · AI 估算,保存后计入消耗` + (note ? ' · ' + note : '');
     r.hidden = false;
   }
-  const WO_PROMPT = '你是运动能量消耗估算助手。根据动作名称、类别、组数/次数/重量或时长/距离,以及体重(kg,0 表示未知按 70 算),用 MET 方法估算这一条训练记录的总消耗,输出 json:{"kcal":0,"note":"一句话假设说明"},不要输出任何其他文字。力量/徒手按实际做功时间估算(每组约 30-45 秒,组间休息不计入),不要按整段训练时长高估;kcal 取整数。无法识别为运动时返回 {"error":"原因"}。';
+  const MUSCLE_SLUGS = ['trapezius', 'upper-back', 'lower-back', 'chest', 'biceps', 'triceps', 'forearm', 'back-deltoids', 'front-deltoids', 'abs', 'obliques', 'adductor', 'abductors', 'hamstring', 'quadriceps', 'calves', 'gluteal', 'neck'];
+  const MUSCLE_CN = { trapezius: '斜方肌', 'upper-back': '上背', 'lower-back': '下背', chest: '胸肌', biceps: '肱二头肌', triceps: '肱三头肌', forearm: '前臂', 'back-deltoids': '后束三角肌', 'front-deltoids': '前束三角肌', abs: '腹肌', obliques: '腹斜肌', adductor: '内收肌', abductors: '外展肌', hamstring: '腘绳肌', quadriceps: '股四头肌', calves: '小腿', gluteal: '臀肌', neck: '颈部', head: '头', knees: '膝', 'left-soleus': '比目鱼肌', 'right-soleus': '比目鱼肌' };
+  // 没有 AI 估算的老记录:按动作名关键词兜底
+  const MUSCLE_MAP = [
+    ['卧推', ['chest', 'triceps', 'front-deltoids']], ['俯卧撑', ['chest', 'triceps', 'front-deltoids']],
+    ['飞鸟', ['chest', 'front-deltoids']], ['夹胸', ['chest']],
+    ['深蹲', ['quadriceps', 'gluteal']], ['弓步', ['quadriceps', 'gluteal', 'hamstring']], ['腿举', ['quadriceps', 'gluteal']],
+    ['硬拉', ['lower-back', 'hamstring', 'gluteal']], ['臀桥', ['gluteal', 'hamstring']], ['臀推', ['gluteal', 'hamstring']],
+    ['引体', ['upper-back', 'biceps']], ['划船', ['upper-back', 'back-deltoids', 'biceps']], ['下拉', ['upper-back', 'biceps']],
+    ['推举', ['front-deltoids', 'triceps']], ['肩推', ['front-deltoids', 'triceps']], ['侧平举', ['front-deltoids']],
+    ['弯举', ['biceps']], ['臂屈伸', ['triceps']], ['三头', ['triceps']],
+    ['卷腹', ['abs']], ['平板', ['abs']], ['腹', ['abs', 'obliques']],
+    ['提踵', ['calves']], ['跑', ['quadriceps', 'hamstring', 'calves']], ['骑行', ['quadriceps', 'calves']], ['单车', ['quadriceps', 'calves']],
+    ['游泳', ['upper-back', 'front-deltoids', 'chest']], ['跳绳', ['calves', 'quadriceps']], ['爬', ['quadriceps', 'gluteal', 'calves']]
+  ];
+  function cleanMuscles(arr) {
+    if (!Array.isArray(arr)) return null;
+    const out = arr
+      .filter(x => x && MUSCLE_SLUGS.indexOf(x.m) >= 0)
+      .map(x => ({ m: x.m, i: Math.max(0.1, Math.min(1, Number(x.i) || 0.5)) }))
+      .slice(0, 6);
+    return out.length ? out : null;
+  }
+  const WO_PROMPT = '你是运动能量消耗估算助手。根据动作名称、类别、组数/次数/重量或时长/距离,以及体重(kg,0 表示未知按 70 算),用 MET 方法估算这一条训练记录的总消耗,并给出主要发力肌群(2-4 个),输出 json:{"kcal":0,"note":"一句话假设说明","muscles":[{"m":"肌群slug","i":0到1的发力占比}]},不要输出任何其他文字。m 只能取:trapezius,upper-back,lower-back,chest,biceps,triceps,forearm,back-deltoids,front-deltoids,abs,obliques,adductor,abductors,hamstring,quadriceps,calves,gluteal,neck。力量/徒手按实际做功时间估算(每组约 30-45 秒,组间休息不计入),不要按整段训练时长高估;kcal 取整数。无法识别为运动时返回 {"error":"原因"}。';
   if ($('#wo-ai')) $('#wo-ai').addEventListener('click', async () => {
     const name = $('#wo-name').value.trim();
     if (!name) { toast('先填动作名称'); return; }
@@ -1131,8 +1186,10 @@
       const kcal = Math.round(Number(res.kcal) || 0);
       if (!kcal) throw new Error('返回格式异常,再试一次');
       woAiBurn = kcal;
+      woAiMuscles = cleanMuscles(res.muscles);
       if (woCat === '有氧') $('#wo-burn').value = kcal;
-      showWoAi(kcal, res.note || '');
+      const mtxt = woAiMuscles ? woAiMuscles.map(x => MUSCLE_CN[x.m] || x.m).join('/') : '';
+      showWoAi(kcal, (res.note || '') + (mtxt ? ' · 部位:' + mtxt : ''));
     } catch (err) {
       if (err.name === 'AbortError') toast('请求超时,稍后再试');
       else if (err instanceof TypeError) toast('网络错误,稍后再试');
@@ -1145,6 +1202,57 @@
   document.addEventListener('input', e => {
     if (e.target.closest('#sets-list') && woCat !== '有氧' && woAiBurn) resetWoAi();
   });
+
+  /* ---------- muscle heat map (vendor/body-highlighter, MIT) ---------- */
+  let bhFront = null, bhBack = null;
+  function musclesFor(w) {
+    if (w.muscles && w.muscles.length) return w.muscles;
+    const name = w.name || '';
+    for (let j = 0; j < MUSCLE_MAP.length; j++) {
+      if (name.indexOf(MUSCLE_MAP[j][0]) >= 0) return MUSCLE_MAP[j][1].map(m => ({ m, i: 0.6 }));
+    }
+    return [];
+  }
+  function renderMuscleMap(k) {
+    const card = $('#muscle-card'); if (!card) return;
+    const BH = window.BodyHighlighter;
+    const agg = {}; // slug -> { s: 强度累计, names: 贡献动作 }
+    workoutsOn(k).forEach(w => {
+      const setsN = w.cat === '有氧'
+        ? Math.max(1, Math.round((Number(w.duration) || 10) / 10)) // 有氧每 10 分钟折 1 组
+        : (w.sets || []).length || 1;
+      musclesFor(w).forEach(x => {
+        if (!agg[x.m]) agg[x.m] = { s: 0, names: [] };
+        agg[x.m].s += setsN * x.i;
+        const nm = w.name || w.cat;
+        if (agg[x.m].names.indexOf(nm) < 0) agg[x.m].names.push(nm);
+      });
+    });
+    const slugs = Object.keys(agg);
+    if (!BH || !slugs.length) { card.hidden = true; return; }
+    card.hidden = false;
+    const max = Math.max.apply(null, slugs.map(m => agg[m].s));
+    const data = slugs.map(m => ({
+      name: agg[m].names.join('、'),
+      muscles: [m],
+      frequency: Math.max(1, Math.min(4, Math.round(agg[m].s / max * 4)))
+    }));
+    const opts = type => ({
+      container: $(type === 'anterior' ? '#muscle-front' : '#muscle-back'),
+      type, data,
+      style: { width: '132px' },
+      bodyColor: '#eeece5',
+      highlightedColors: ['#ffd9cc', '#ffb49a', '#ff8a5c', '#ff6a45'], // 浅→深,4 档
+      onClick: st => toast((MUSCLE_CN[st.muscle] || st.muscle) + ' · ' + (st.data.exercises || []).join('、'))
+    });
+    if (!bhFront) {
+      bhFront = BH.createBodyHighlighter(opts('anterior'));
+      bhBack = BH.createBodyHighlighter(opts('posterior'));
+    } else {
+      bhFront.update({ data });
+      bhBack.update({ data });
+    }
+  }
 
   /* ---------- weight ---------- */
   $('#save-weight').addEventListener('click', () => {
@@ -1473,6 +1581,15 @@
     if (mm) { mgMode = mm.dataset.mgmode; renderNutritionProgress(); renderDietProgress(); return; }
     const gh = e.target.closest('[data-mggrp]');
     if (gh) { const gi = gh.dataset.mggrp; mgGrpOpen[gi] = !mgGrpOpen[gi]; renderNutritionProgress(); renderDietProgress(); return; }
+    const sy = e.target.closest('[data-sys]');
+    if (sy) {
+      const dk = sy.closest('#diet-micro') ? sel.diet : sel.today;
+      const got = mgMode === 'avg7' ? nutritionAvg7(dk).got : nutritionOn(dk);
+      const s = SYSTEMS[+sy.dataset.sys];
+      toast(s.n + ':' + s.nut.map(k =>
+        (k === 'protein' ? '蛋白质' : (MICROS.find(x => x.k === k) || {}).n) + ' ' + Math.round(sysPct(got, k) * 100) + '%').join(' · '));
+      return;
+    }
     const nutItem = e.target.closest('.mg-item[data-nutrient]');
     if (nutItem) {
       const dk = nutItem.closest('#diet-micro') ? sel.diet : sel.today;

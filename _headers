@@ -1,0 +1,10 @@
+# Cloudflare Pages 响应头(LAUNCH.md 阶段0)。
+# CSP 说明:
+#  - connect-src 三个外域:DeepSeek(AI)、GitHub API(gist 同步)、gist raw(库超 1MB 时 truncated 走 raw_url)
+#  - style-src 需 'unsafe-inline':JS 渲染的 HTML 大量用 style="" 属性(条形高度等),风险可控
+#  - script-src 不开 inline:唯一的内联 module 已搬进 vendor/bh-bridge.js
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  X-Frame-Options: DENY
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://api.deepseek.com https://api.github.com https://gist.githubusercontent.com; base-uri 'self'; form-action 'self'; frame-ancestors 'none'

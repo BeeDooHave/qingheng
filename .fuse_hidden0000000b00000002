@@ -11,7 +11,7 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
   <link rel="icon" href="favicon-64.png" />
-  <link rel="stylesheet" href="styles.css?v=51" />
+  <link rel="stylesheet" href="styles.css?v=45" />
 </head>
 <body>
 <div id="app">
@@ -53,7 +53,7 @@
         </div>
         <div class="legend-item">
           <span class="dot dot-out"></span>
-          <div><p class="legend-num" id="sum-out">0</p><p class="legend-cap" id="sum-out-cap">消耗</p></div>
+          <div><p class="legend-num" id="sum-out">0</p><p class="legend-cap">消耗</p></div>
         </div>
       </div>
     </div>
@@ -160,7 +160,7 @@
         <button class="ghost-btn" data-open="template">模板 ›</button>
       </div>
     </div>
-    <div id="training-list" class="meal-groups"></div>
+    <div id="training-list" class="stack"></div>
     <div class="bottom-space"></div>
     <button class="fab accent-coral" data-open="workout">＋ 加动作</button>
   </section>
@@ -248,14 +248,6 @@
   <div class="sheet" id="sheet-meal" hidden>
     <div class="sheet-grip"></div>
     <h3 class="sheet-title">记一餐</h3>
-    <div class="edit-date-row" id="meal-date-row" hidden>
-      <span class="rest-cap">记录日期</span>
-      <div class="date-nav">
-        <button class="icon-btn sm" data-edate="meal" data-dir="-1" aria-label="前一天">‹</button>
-        <span class="date-chip" id="meal-date-chip">今天</span>
-        <button class="icon-btn sm" data-edate="meal" data-dir="1" aria-label="后一天">›</button>
-      </div>
-    </div>
     <div id="recent-meals" hidden></div>
     <div class="seg" id="meal-type">
       <button data-v="早餐" class="active">早餐</button>
@@ -291,14 +283,6 @@
   <div class="sheet" id="sheet-workout" hidden>
     <div class="sheet-grip"></div>
     <h3 class="sheet-title">加一个动作</h3>
-    <div class="edit-date-row" id="wo-date-row" hidden>
-      <span class="rest-cap">记录日期</span>
-      <div class="date-nav">
-        <button class="icon-btn sm" data-edate="workout" data-dir="-1" aria-label="前一天">‹</button>
-        <span class="date-chip" id="wo-date-chip">今天</span>
-        <button class="icon-btn sm" data-edate="workout" data-dir="1" aria-label="后一天">›</button>
-      </div>
-    </div>
     <div id="recent-workouts" hidden></div>
     <div class="seg" id="workout-cat">
       <button data-v="力量" class="active">力量</button>
@@ -439,21 +423,11 @@
     <div class="field-row">
       <label class="field"><span>每日热量目标</span>
         <input id="set-target" type="number" inputmode="numeric" placeholder="1600" /></label>
-      <label class="field"><span>日常消耗(不含训练)</span>
+      <label class="field"><span>基础代谢 BMR</span>
         <input id="set-bmr" type="number" inputmode="numeric" placeholder="1400" /></label>
     </div>
     <label class="field"><span>目标体重 (kg)</span>
       <input id="set-tgtw" type="number" inputmode="decimal" placeholder="选填,填了体重卡会显示差距和预计达标日" /></label>
-    <div class="field-row">
-      <label class="field"><span>身高 (cm)</span>
-        <input id="set-height" type="number" inputmode="numeric" placeholder="170" /></label>
-      <label class="field"><span>年龄</span>
-        <input id="set-age" type="number" inputmode="numeric" placeholder="25" /></label>
-      <label class="field"><span>性别</span>
-        <select id="set-sex"><option value="m">男</option><option value="f">女</option></select></label>
-    </div>
-    <button class="ai-btn" id="calc-bmr">按身体数据算消耗与建议摄入</button>
-    <p class="hint" id="calc-bmr-result" hidden></p>
     <label class="field"><span>DeepSeek API Key(AI 营养估算)</span>
       <input id="set-dskey" type="password" placeholder="sk-..." autocomplete="off" /></label>
     <p class="hint">净缺口 = 消耗(基础代谢 + 训练) − 摄入。想减脂,让它保持正数就好。BMR 不用猜:数据页的「自校准消耗」会用你的实际记录反推,一键采用。</p>
@@ -482,13 +456,13 @@
     <button class="text-btn" id="force-refresh">强制刷新(拿最新版)</button>
     <button class="text-btn" data-open="debug">诊断信息</button>
     <button class="text-btn sheet-cancel">取消</button>
-    <p class="hint" id="app-version" style="text-align:center;opacity:.55">轻衡 v51</p>
+    <p class="hint" id="app-version" style="text-align:center;opacity:.55">轻衡 v45</p>
   </div>
 
 </div>
 <div id="toast" class="toast" hidden></div>
 <script src="vendor/confetti.min.js" defer></script>
-<script type="module" src="vendor/bh-bridge.js"></script>
-<script src="app.js?v=51"></script>
+<script type="module">import * as BH from './vendor/body-highlighter.esm.js'; window.BodyHighlighter = BH;</script>
+<script src="app.js?v=45"></script>
 </body>
 </html>

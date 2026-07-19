@@ -48,6 +48,7 @@
     return [].concat(
       (d.meals || []).map(x => 'm' + x.id),
       (d.workouts || []).map(x => 'w' + x.id),
+      (d.templates || []).map(x => 't' + x.id),
       (d.weights || []).map(x => 'kg' + x.date));
   }
 
@@ -101,8 +102,8 @@
     });
     await test('六系统行已渲染', () => assert($$('#diet-micro .sys-it').length === 6));
 
-    // 五个弹层开与关(取消路径,不触碰保存)
-    for (const [name, opener] of [['meal', '[data-open="meal"]'], ['workout', '[data-open="workout"]'], ['weight', '[data-open="weight"]'], ['settings', '[data-open="settings"]'], ['debug', '[data-open="debug"]']]) {
+    // 六个弹层开与关(取消路径,不触碰保存)
+    for (const [name, opener] of [['meal', '[data-open="meal"]'], ['workout', '[data-open="workout"]'], ['weight', '[data-open="weight"]'], ['template', '[data-open="template"]'], ['settings', '[data-open="settings"]'], ['debug', '[data-open="debug"]']]) {
       await test('弹层:' + name, async () => {
         if (name === 'debug') { $('[data-open="settings"]').click(); await sleep(150); }
         const o = $(opener); assert(o, '找不到入口'); o.click(); await sleep(200);
@@ -170,6 +171,175 @@
       const r = M({ weights: [{ date: '2026-07-01', kg: 70, ts: 2 }], settings: {} },
                   { weights: [{ date: '2026-07-01', kg: 71, ts: 1 }, { date: '2026-07-02', kg: 69, ts: 1 }], settings: {} });
       assert(r.weights.length === 2 && r.weights.find(w => w.date === '2026-07-01').kg === 70);
+    });
+
+    // ---- v42 新元素与纯函数 ----
+    await test('v42 新元素就位(chips/计时/目标/CSV/历史/模板/TDEE)', () => {
+      ['#recent-workouts', '#rest-row', '#set-tgtw', '#export-csv', '#sheet-history', '#sheet-template', '#tdee-box', '#weight-goal']
+        .forEach(s => assert($(s), s + ' 缺失'));
+    });
+    const T = W.__qh_test;
+    await test('toCsv:逗号/引号正确转义', () => {
+      assert(typeof T.toCsv === 'function');
+      const s = T.toCsv([['a', 'b,c', 'd"e'], [1, 2, 3]]);
+      assert(s === 'a,"b,c","d""e"\n1,2,3', s);
+    });
+    await test('forecastDays:5kg·550/天→70天;缺口≤0→null', () => {
+      assert(T.forecastDays(5, 550) === 70, 'got ' + T.forecastDays(5, 550));
+      assert(T.forecastDays(5, 0) === null && T.forecastDays(5, -100) === null && T.forecastDays(0, 500) === null);
+    });
+    await test('histSeries:力量=每日最大重量,PR 取最近平最高', () => {
+      const h = T.histSeries([
+        { date: '2026-07-01', cat: '力量', sets: [{ w: 50, reps: 8 }, { w: 55, reps: 6 }] },
+        { date: '2026-07-05', cat: '力量', sets: [{ w: 60, reps: 5 }] }
+      ]);
+      assert(h.points.length === 2 && h.points[0].v === 55, JSON.stringify(h.points));
+      assert(h.pr.v === 60 && h.pr.date === '2026-07-05', JSON.stringify(h.pr));
+    });
+    await test('histSeries:徒手=总次数、有氧=时长', () => {
+      const t1 = T.histSeries([{ date: '2026-07-01', cat: '徒手', sets: [{ w: 0, reps: 10 }, { w: 0, reps: 12 }] }]);
+      assert(t1.pr.v === 22 && t1.unit === '次', '徒手=' + JSON.stringify(t1.pr));
+      const t2 = T.histSeries([{ date: '2026-07-01', cat: '有氧', duration: 30 }]);
+      assert(t2.pr.v === 30 && t2.unit === '分钟', '有氧=' + JSON.stringify(t2.pr));
+    });
+    await test('tdeeFromLogs:14天 1600入/200练/降1kg → 1950', () => {
+      const weights = [{ date: '2026-06-01', kg: 80 }, { date: '2026-06-15', kg: 79 }];
+      const days = {};
+      for (let i = 1; i <= 14; i++) days['2026-06-' + String(i).padStart(2, '0')] = { in: 1600, train: 200 };
+      const r = T.tdeeFromLogs(weights, days);
+      assert(r && r.v === 1950 && r.segs === 1 && r.days === 14 && r.cover === 100, JSON.stringify(r));
+    });
+    await test('tdeeFromLogs:覆盖率不足/间隔太近 → null', () => {
+      const weights = [{ date: '2026-06-01', kg: 80 }, { date: '2026-06-15', kg: 79 }];
+      assert(T.tdeeFromLogs(weights, { '2026-06-01': { in: 1600, train: 0 } }) === null, '覆盖率不足该拒');
+      const near = [{ date: '2026-06-01', kg: 80 }, { date: '2026-06-02', kg: 79 }];
+      assert(T.tdeeFromLogs(near, { '2026-06-01': { in: 1600, train: 0 } }) === null, '间隔<3天该拒');
+    });
+    await test('mergeDb:templates 参与合并与墓碑', () => {
+      const r = M({ templates: [{ id: 't1', name: '推日', ts: 2 }], settings: {} },
+                  { templates: [{ id: 't1', name: '旧', ts: 1 }, { id: 't2', name: '拉日', ts: 1 }], settings: {} });
+      assert(r.templates.length === 2 && r.templates.find(t => t.id === 't1').name === '推日', '合并错');
+      const r2 = M({ templates: [], tombstones: { t2: 100 }, settings: {} },
+                   { templates: [{ id: 't2', ts: 50 }], settings: {} });
+      assert(r2.templates.length === 0, '模板该删没删');
+    });
+
+    // ---- v44: 食物索引 + 补剂 ----
+    await test('v44 新元素就位(补剂卡/补剂弹层/全部食物区)', () => {
+      ['#supp-list', '#sheet-supp', '#supp-def-list', '#supp-add', '#all-foods']
+        .forEach(s => assert($(s), s + ' 缺失'));
+    });
+    await test('foodIndex:聚合次数,最新 ts 的量胜出,手动餐也解析', () => {
+      const idx = T.foodIndex([
+        { ts: 1, nutrients: { items: [{ name: '鸡胸肉', amount: '100g' }, { name: '米饭', amount: '1碗' }] } },
+        { ts: 2, nutrients: { items: [{ name: '鸡胸肉', amount: '150g' }] } },
+        { ts: 3, name: '鸡蛋2个、牛奶250ml' }
+      ]);
+      const chick = idx.find(f => f.name === '鸡胸肉');
+      assert(chick && chick.count === 2 && chick.amt === '150' && chick.unit === 'g', JSON.stringify(chick));
+      assert(idx.find(f => f.name === '米饭').unit === '碗', '碗单位解析错');
+      const egg = idx.find(f => f.name === '鸡蛋');
+      assert(egg && egg.amt === '2' && egg.unit === '个', '手动餐解析错:' + JSON.stringify(egg));
+      assert(idx.find(f => f.name === '牛奶').unit === 'ml', 'ml 单位解析错');
+    });
+    await test('foodIndex:老食物不会被最近记录挤掉(全量索引)', () => {
+      const meals = [{ ts: 1, name: '很久以前的藜麦100g' }];
+      for (let i = 2; i < 30; i++) meals.push({ ts: i, name: '鸡胸肉150g' });
+      const idx = T.foodIndex(meals);
+      assert(idx.find(f => f.name === '很久以前的藜麦'), '老食物丢了');
+    });
+    await test('mergeDb:supps/suppLogs 参与合并与墓碑', () => {
+      const r = M({ supps: [{ id: 's1', name: '肌酸', ts: 2 }], suppLogs: [{ id: 'l1', date: '2026-07-19', suppId: 's1', ts: 1 }], settings: {} },
+                  { supps: [{ id: 's1', name: '旧名', ts: 1 }, { id: 's2', name: '鱼油', ts: 1 }], suppLogs: [], settings: {} });
+      assert(r.supps.length === 2 && r.supps.find(s => s.id === 's1').name === '肌酸', '补剂合并错');
+      assert(r.suppLogs.length === 1, '打卡记录丢了');
+      const r2 = M({ suppLogs: [], tombstones: { l1: 100 }, settings: {} },
+                   { suppLogs: [{ id: 'l1', date: '2026-07-19', suppId: 's1', ts: 50 }], settings: {} });
+      assert(r2.suppLogs.length === 0, '取消打卡该删没删');
+    });
+    await test('v45 补剂成分:元素就位 + suppNutrition 聚合', () => {
+      assert($('#supp-micros-box') && $('#supp-micros'), '成分输入区缺失');
+      const supps = [{ id: 's1', name: '维C片', protein: 0, micros: { vitC: 90, ca: 200 } }, { id: 's2', name: '蛋白粉', protein: 24 }];
+      const logs = [{ id: 'l1', date: '2026-07-19', suppId: 's1' }, { id: 'l2', date: '2026-07-19', suppId: 's2' }, { id: 'l3', date: '2026-07-18', suppId: 's1' }];
+      const a = T.suppNutrition(supps, logs, '2026-07-19');
+      assert(a.vitC === 90 && a.ca === 200 && a.protein === 24, JSON.stringify(a));
+      assert(a.zn === 0, '没录的成分该是 0');
+      const b = T.suppNutrition(supps, [{ id: 'l9', date: '2026-07-19', suppId: '已删除的' }], '2026-07-19');
+      assert(b.vitC === 0 && b.protein === 0, '定义被删的打卡不该计数');
+    });
+
+    await test('setsSummary/setBarsHtml:折叠文案与组条图', () => {
+      assert(T.setsSummary([{ w: 30, reps: 10 }, { w: 30, reps: 10 }], '力量') === '30kg ×10 ×2', '同重同次该折叠');
+      assert(T.setsSummary([{ w: 72, reps: 10 }, { w: 52, reps: 5 }], '力量') === '72→52kg · 2 组', '变重该写区间');
+      assert(T.setsSummary([{ w: 0, reps: 12 }, { w: 0, reps: 12 }], '徒手') === '自重 ×12 ×2', '徒手该写自重');
+      const bars = T.setBarsHtml([{ w: 72, reps: 10 }, { w: 62, reps: 10 }, { w: 52, reps: 10 }], '力量');
+      assert((bars.match(/<i /g) || []).length === 3, '3 组该 3 根条');
+      assert(bars.indexOf('o1') > 0 || bars.indexOf('o2') > 0, '递减组该有深浅分档');
+      assert(T.setBarsHtml([{ w: 30, reps: 10 }], '力量') === '', '单组不画条(没信息量)');
+    });
+    await test('groupWorkouts:按主部位分组,容量降序,有氧垫底', () => {
+      const mus = w => w.muscles || [];
+      const g = T.groupWorkouts([
+        { cat: '力量', name: '卧推', sets: [{ w: 60, reps: 10 }], muscles: [{ m: 'chest', i: 0.8 }, { m: 'triceps', i: 0.3 }] },
+        { cat: '力量', name: '深蹲', sets: [{ w: 80, reps: 10 }, { w: 80, reps: 10 }], muscles: [{ m: 'quadriceps', i: 0.9 }] },
+        { cat: '有氧', name: '跑步', duration: 30 },
+        { cat: '力量', name: '神秘动作', sets: [{ w: 10, reps: 10 }], muscles: [] }
+      ], mus);
+      assert(g[0].name === '腿臀' && g[0].vol === 1600 && g[0].sets === 2, '腿臀该排第一:' + JSON.stringify(g[0]));
+      assert(g[1].name === '胸' && g[1].vol === 600, '胸组错');
+      assert(g[g.length - 1].name === '有氧' && g[g.length - 1].mins === 30, '有氧该垫底');
+      assert(g.some(x => x.name === '其他'), '没肌群信息该进「其他」');
+    });
+    await test('身体数据/消耗拆分:元素就位', () => {
+      ['#set-height', '#set-age', '#set-sex', '#calc-bmr', '#calc-bmr-result', '#sum-out-cap'].forEach(s => assert($(s), s + ' 缺失'));
+    });
+    await test('mifflinCalc:公式、性别差、下限与非法输入', () => {
+      const r = T.mifflinCalc(78, 170, 25, 'm');
+      assert(r.bmr === 1723 && r.daily === 2068 && r.intake === 1568, JSON.stringify(r));
+      const f = T.mifflinCalc(78, 170, 25, 'f');
+      assert(f.bmr === 1557, '女性该 −161:' + f.bmr);
+      assert(T.mifflinCalc(40, 140, 80, 'f').intake === 1200, '建议摄入该有 1200 下限');
+      assert(T.mifflinCalc(0, 170, 25, 'm') === null && T.mifflinCalc(78, 0, 25, 'm') === null, '缺参数该返回 null');
+    });
+    await test('编辑改日期:元素就位,非编辑态隐藏', () => {
+      ['#meal-date-row', '#meal-date-chip', '#wo-date-row', '#wo-date-chip'].forEach(s => assert($(s), s + ' 缺失'));
+      assert($('#meal-date-row').hidden && $('#wo-date-row').hidden, '非编辑态该隐藏日期行');
+    });
+    await test('粘贴导入:元素就位', () => {
+      ['#sheet-paste', '#paste-text', '#paste-parse', '#paste-preview', '#paste-list', '#paste-save', '#paste-date', '#paste-back']
+        .forEach(s => assert($(s), s + ' 缺失'));
+    });
+    await test('normalizeParsed:大次数拆组,逐段各一组', () => {
+      const r = T.normalizeParsed({ date: null, items: [
+        { cat: '力量', name: 'leg press', sets: [{ kg: 80, reps: 40 }], kcal: 90, muscles: [{ m: 'quadriceps', i: 0.8 }] },
+        { cat: '力量', name: 'dip assist', sets: [{ kg: 72, reps: 10 }, { kg: 68, reps: 10 }], kcal: 50 }
+      ] }, '2026-07-19');
+      assert(r.date === '2026-07-19', '没日期该回退到选中日:' + r.date);
+      const a = r.items[0];
+      assert(a.sets.length === 4 && a.sets.every(s => s.w === 80 && s.reps === 10), '80×40 该拆 4 组×10:' + JSON.stringify(a.sets));
+      assert(r.items[1].sets.length === 2, '逐段该各算一组');
+      const b = T.normalizeParsed({ items: [{ cat: '力量', name: 'x', sets: [{ kg: 20, reps: 35 }] }] }, '2026-07-19');
+      assert(b.items[0].sets.map(s => s.reps).join(',') === '10,10,10,5', '35 该拆 10,10,10,5:' + JSON.stringify(b.items[0].sets));
+    });
+    await test('normalizeParsed:日期补年,肌群白名单,废条目剔除', () => {
+      const r = T.normalizeParsed({ date: '7-19', items: [
+        { cat: '力量', name: '卧推', sets: [{ kg: 30, reps: 10 }], muscles: [{ m: 'chest', i: 0.8 }, { m: '不存在', i: 1 }] },
+        { cat: '有氧', name: '跑步', sets: [], duration_min: 30, distance_km: 5, kcal: 300 },
+        { cat: '力量', name: '', sets: [{ kg: 1, reps: 1 }] },
+        { cat: '力量', name: '没组数', sets: [] }
+      ] }, '2026-07-19');
+      assert(r.date === '2026-07-19', 'MM-DD 该补选中日的年份:' + r.date);
+      assert(r.items.length === 2, '空名/没组数该被剔除:' + r.items.length);
+      assert(r.items[0].muscles.length === 1 && r.items[0].muscles[0].m === 'chest', '非法 slug 该被滤掉');
+      assert(r.items[1].duration === 30 && r.items[1].distance === 5 && r.items[1].kcal === 300, '有氧字段错:' + JSON.stringify(r.items[1]));
+      assert(T.normalizeParsed({ error: '不是训练' }, '2026-07-19').items.length === 0, '错误返回该给空列表');
+      assert(T.normalizeParsed(null, '2026-07-19').items.length === 0, 'null 该给空列表');
+    });
+    await test('parseSetsText:预览手改组数解析', () => {
+      const s = T.parseSetsText('80×10 80×10, 7.5kg×8;×12');
+      assert(s.length === 4 && s[0].w === 80 && s[2].w === 7.5 && s[3].w === 0 && s[3].reps === 12, JSON.stringify(s));
+      assert(T.parseSetsText('乱写的文本').length === 0, '乱文本该给空');
+      assert(T.parseSetsText('').length === 0, '空串该给空');
     });
 
     await test('页面无未捕获错误', () => assert(errors.length === 0, errors.join(' | ').slice(0, 90)));
